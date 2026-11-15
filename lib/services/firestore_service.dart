@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/app_user.dart';
 import '../models/order.dart';
 import '../models/product.dart';
+import 'catalog_excel.dart';
 
 /// No hay stock suficiente de un producto para aprobar un pedido.
 class InsufficientStockException implements Exception {
@@ -186,6 +187,64 @@ class FirestoreService {
           .doc(product.id)
           .set(product.toMap(), SetOptions(merge: true));
     }
+  }
+
+  /// ID del documento de cada producto según su código (SKU).
+  Future<Map<String, String>> fetchProductIdsBySku() async {
+    final snapshot = await _db.collection('products').get();
+    return {
+      for (final doc in snapshot.docs)
+        if ((doc.data()['sku'] as String? ?? '').isNotEmpty)
+          doc.data()['sku'] as String: doc.id,
+    };
+  }
+
+  /// Guarda las filas de un Excel de catálogo (solo para el administrador).
+  ///
+  /// Un código que ya existe actualiza ese producto, tocando solo los campos
+  /// que trae la fila; un código nuevo crea el producto. Nunca borra.
+  /// Devuelve cuántos productos se crearon y cuántos se actualizaron.
+  Future<({int created, int updated})> importCatalog(
+    List<CatalogRow> rows,
+  ) async {
+    final products = _db.collection('products');
+    final idsBySku = await fetchProductIdsBySku();
+    var created = 0;
+    var updated = 0;
+
+    // Firestore admite hasta 500 escrituras por lote.
+    const batchSize = 400;
+    for (var start = 0; start < rows.length; start += batchSize) {
+      final batch = _db.batch();
+      for (final row in rows.skip(start).take(batchSize)) {
+        final existingId = idsBySku[row.sku];
+        if (existingId != null) {
+          batch.set(
+            products.doc(existingId),
+            row.data,
+            SetOptions(merge: true),
+          );
+          updated++;
+        } else {
+          batch.set(products.doc(), {
+            'category': 'General',
+            'material': '',
+            'index': null,
+            'treatment': '',
+            'description': '',
+            'stock': null,
+            'imageUrl': '',
+            'isFeatured': false,
+            'active': true,
+            ...row.data,
+          });
+          created++;
+        }
+      }
+      await batch.commit();
+    }
+
+    return (created: created, updated: updated);
   }
 
   // --- Pedidos ---

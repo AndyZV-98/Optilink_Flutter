@@ -14,6 +14,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/catalog/catalog_screen.dart';
 import 'screens/order/cart_screen.dart';
 import 'screens/order/order_history_screen.dart';
+import 'services/file_transfer.dart';
 import 'services/firestore_service.dart';
 import 'utils/formatters.dart';
 
@@ -31,6 +32,7 @@ Future<void> main() async {
     MultiProvider(
       providers: [
         Provider<FirestoreService>.value(value: firestoreService),
+        Provider<FileTransfer>.value(value: const FileTransfer()),
         ChangeNotifierProvider(
           create: (_) => CartProvider(firestoreService.placeOrder),
         ),

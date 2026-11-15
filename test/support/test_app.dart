@@ -1,9 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:optilink_app/main.dart';
 import 'package:optilink_app/providers/cart_provider.dart';
+import 'package:optilink_app/services/file_transfer.dart';
 import 'package:optilink_app/services/firestore_service.dart';
 import 'package:provider/provider.dart';
 
@@ -35,7 +38,7 @@ Future<FirestoreService> pumpOptiLink(
   required FakeFirebaseFirestore db,
   MockUser? user,
   Size size = const Size(400, 900),
-  List<Provider> extraProviders = const [],
+  FileTransfer files = const FileTransfer(),
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -51,7 +54,7 @@ Future<FirestoreService> pumpOptiLink(
       providers: [
         Provider<FirestoreService>.value(value: service),
         ChangeNotifierProvider(create: (_) => CartProvider(service.placeOrder)),
-        ...extraProviders,
+        Provider<FileTransfer>.value(value: files),
       ],
       child: const OptiLinkApp(),
     ),
@@ -66,4 +69,23 @@ Future<void> dismissSnackBars(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.pump(const Duration(seconds: 5));
   await tester.pumpAndSettle();
+}
+
+/// Sustituto del selector de archivos: "elige" [toPick] y guarda en memoria
+/// lo que la app descarga.
+class FakeFileTransfer implements FileTransfer {
+  /// Contenido del archivo que el usuario elige; `null` simula cancelar.
+  Uint8List? toPick;
+
+  /// Archivos descargados, por nombre.
+  final Map<String, Uint8List> saved = {};
+
+  @override
+  Future<Uint8List?> pickExcel() async => toPick;
+
+  @override
+  Future<bool> saveExcel(String fileName, Uint8List bytes) async {
+    saved[fileName] = bytes;
+    return true;
+  }
 }

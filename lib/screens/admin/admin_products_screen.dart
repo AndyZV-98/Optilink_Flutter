@@ -5,14 +5,12 @@ import '../../models/product.dart';
 import '../../services/firestore_service.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/max_width.dart';
+import 'data_transfer_screen.dart';
 import 'product_form_screen.dart';
 
 /// Catálogo completo para el distribuidor: buscar, crear y editar productos.
 class AdminProductsScreen extends StatefulWidget {
-  /// Botones adicionales junto al de "Nuevo" (p. ej. carga desde Excel).
-  final List<Widget> actions;
-
-  const AdminProductsScreen({this.actions = const [], super.key});
+  const AdminProductsScreen({super.key});
 
   @override
   State<AdminProductsScreen> createState() => _AdminProductsScreenState();
@@ -132,7 +130,18 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                 icon: const Icon(Icons.add),
                 label: const Text('Nuevo producto'),
               ),
-              ...widget.actions,
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const DataTransferScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.table_view),
+                label: const Text('Cargar / descargar Excel'),
+              ),
             ],
           ),
         ],
