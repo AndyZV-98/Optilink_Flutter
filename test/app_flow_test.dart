@@ -4,11 +4,9 @@ import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:optilink_app/main.dart';
-import 'package:optilink_app/providers/cart_provider.dart';
-import 'package:optilink_app/services/firestore_service.dart';
 import 'package:optilink_app/utils/formatters.dart';
-import 'package:provider/provider.dart';
+
+import 'support/test_app.dart';
 
 /// Recorre la app real (pantallas, carrito y servicio) contra un Firestore y
 /// un Auth simulados en memoria.
@@ -35,6 +33,7 @@ void main() {
       'stock': 0,
       'imageUrl': '',
     });
+    await seedProfile(db, 'optica-1');
     // Pedido de otra óptica: no debe aparecer en el historial.
     await db.collection('orders').add({
       'userId': 'otra-optica',
@@ -47,39 +46,12 @@ void main() {
     });
   });
 
-  Future<void> pumpApp(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(400, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    final service = FirestoreService(
+  Future<void> pumpApp(WidgetTester tester) {
+    return pumpOptiLink(
+      tester,
       db: db,
-      auth: MockFirebaseAuth(
-        signedIn: true,
-        mockUser: MockUser(uid: 'optica-1', email: 'optica@example.com'),
-      ),
+      user: MockUser(uid: 'optica-1', email: 'optica@example.com'),
     );
-
-    await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          Provider<FirestoreService>.value(value: service),
-          ChangeNotifierProvider(
-            create: (_) => CartProvider(service.placeOrder),
-          ),
-        ],
-        child: const MaterialApp(home: MainScreenNavigator()),
-      ),
-    );
-    await tester.pumpAndSettle();
-  }
-
-  /// Deja pasar el tiempo de los avisos (SnackBar) para que se cierren. El
-  /// temporizador de un aviso empieza cuando termina su animación de entrada.
-  Future<void> dismissSnackBars(WidgetTester tester) async {
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
   }
 
   testWidgets('una óptica arma un pedido, lo confirma y lo ve en Pedidos', (
@@ -131,6 +103,7 @@ void main() {
     expect(saved.docs, hasLength(1));
     final data = saved.docs.single.data();
     expect(data['userEmail'], 'optica@example.com');
+    expect(data['businessName'], 'Óptica Central');
     expect(data['status'], 'Pendiente');
     expect(data['totalAmount'], 37.5);
     expect(data['orderDate'], isA<Timestamp>());

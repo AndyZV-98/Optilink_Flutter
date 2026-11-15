@@ -1,10 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/app_user.dart';
 import '../models/order.dart';
 import '../models/product.dart';
 
-/// Acceso a Firebase Auth y a las colecciones `products` y `orders`.
+/// Acceso a Firebase Auth y a las colecciones `users`, `products` y `orders`.
 class FirestoreService {
   /// Por defecto usa las instancias reales de Firebase; las pruebas pueden
   /// pasar instancias simuladas.
@@ -23,6 +24,9 @@ class FirestoreService {
   /// Correo del usuario con sesión iniciada.
   String? get currentUserEmail => _auth.currentUser?.email;
 
+  /// Emite el usuario cada vez que se inicia o se cierra la sesión.
+  Stream<User?> authStateChanges() => _auth.authStateChanges();
+
   /// Inicia sesión con correo y contraseña.
   ///
   /// Lanza [FirebaseAuthException] si las credenciales no son válidas.
@@ -40,6 +44,79 @@ class FirestoreService {
   }
 
   Future<void> signOut() => _auth.signOut();
+
+  // --- Perfiles y roles ---
+
+  /// Crea la cuenta de una óptica y su perfil, que queda pendiente de
+  /// aprobación.
+  ///
+  /// Lanza [FirebaseAuthException] si el correo ya existe o la contraseña es
+  /// débil.
+  Future<void> register({
+    required String email,
+    required String password,
+    required ProfileData profile,
+  }) async {
+    await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    await createProfile(profile);
+  }
+
+  /// Guarda el perfil del usuario actual como óptica pendiente de aprobación.
+  ///
+  /// Se usa al registrarse y también para cuentas creadas antes de que
+  /// existieran los perfiles.
+  Future<void> createProfile(ProfileData profile) async {
+    final userId = currentUserId;
+    if (userId == null) {
+      throw StateError('No hay una sesión iniciada para guardar el perfil.');
+    }
+
+    await _db.collection('users').doc(userId).set({
+      ...profile.toMap(),
+      'email': currentUserEmail ?? '',
+      'role': roleOptica,
+      'status': userStatusPending,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Perfil del usuario actual en tiempo real; `null` si aún no tiene perfil.
+  Stream<AppUser?> watchCurrentUser() {
+    final userId = currentUserId;
+    if (userId == null) {
+      return Stream.value(null);
+    }
+
+    return _db.collection('users').doc(userId).snapshots().map((doc) {
+      final data = doc.data();
+      return data == null ? null : AppUser.fromMap(doc.id, data);
+    });
+  }
+
+  /// Todas las cuentas (solo para el administrador): primero las pendientes y
+  /// luego por razón social.
+  Stream<List<AppUser>> watchUsers() {
+    return _db.collection('users').snapshots().map((snapshot) {
+      final users = snapshot.docs
+          .map((doc) => AppUser.fromMap(doc.id, doc.data()))
+          .toList();
+      users.sort((a, b) {
+        if (a.isPending != b.isPending) return a.isPending ? -1 : 1;
+        return a.displayName.toLowerCase().compareTo(
+          b.displayName.toLowerCase(),
+        );
+      });
+      return users;
+    });
+  }
+
+  /// Aprueba o rechaza una cuenta (solo para el administrador).
+  Future<void> setUserStatus(String uid, String status) {
+    return _db.collection('users').doc(uid).update({'status': status});
+  }
 
   // --- Catálogo ---
 
@@ -68,9 +145,14 @@ class FirestoreService {
       throw StateError('No hay una sesión iniciada para realizar el pedido.');
     }
 
+    // Copia de la razón social, para que el distribuidor vea quién pidió.
+    final profile = await _db.collection('users').doc(userId).get();
+    final businessName = profile.data()?['businessName'] as String? ?? '';
+
     await _db.collection('orders').add({
       'userId': userId,
       'userEmail': currentUserEmail,
+      'businessName': businessName,
       'orderDate': FieldValue.serverTimestamp(),
       'totalAmount': totalAmount,
       'items': items,

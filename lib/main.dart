@@ -5,8 +5,10 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
+import 'models/app_user.dart';
 import 'providers/cart_provider.dart';
 import 'screens/account/account_screen.dart';
+import 'screens/auth/account_status_screens.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/catalog/catalog_screen.dart';
 import 'screens/order/cart_screen.dart';
@@ -53,27 +55,126 @@ class OptiLinkApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      // La pantalla inicial depende de si hay una sesión iniciada.
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-
-          final user = snapshot.data;
-          if (user == null) {
-            return const LoginScreen();
-          }
-
-          // La clave fuerza a reconstruir las pantallas (y sus consultas a
-          // Firestore) si inicia sesión una cuenta distinta.
-          return MainScreenNavigator(key: ValueKey(user.uid));
-        },
-      ),
+      home: const AuthGate(),
     );
+  }
+}
+
+/// Decide la pantalla inicial según haya o no una sesión iniciada.
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  late final Stream<User?> _authState;
+
+  @override
+  void initState() {
+    super.initState();
+    _authState = context.read<FirestoreService>().authStateChanges();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: _authState,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _LoadingScreen();
+        }
+
+        final user = snapshot.data;
+        if (user == null) {
+          return const LoginScreen();
+        }
+
+        // La clave fuerza a reconstruir las pantallas (y sus consultas a
+        // Firestore) si inicia sesión una cuenta distinta.
+        return ProfileGate(key: ValueKey(user.uid));
+      },
+    );
+  }
+}
+
+/// Con sesión iniciada, decide la pantalla según el perfil de la cuenta:
+/// sin perfil, pendiente o rechazada, óptica aprobada, o administrador.
+class ProfileGate extends StatefulWidget {
+  const ProfileGate({super.key});
+
+  @override
+  State<ProfileGate> createState() => _ProfileGateState();
+}
+
+class _ProfileGateState extends State<ProfileGate> {
+  late final Stream<AppUser?> _profile;
+
+  @override
+  void initState() {
+    super.initState();
+    _profile = context.read<FirestoreService>().watchCurrentUser();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AppUser?>(
+      stream: _profile,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'No se pudo cargar tu cuenta. Revisa tu conexión e '
+                      'inténtalo de nuevo.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: () => signOutAndClearCart(context),
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Cerrar Sesión'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _LoadingScreen();
+        }
+
+        final profile = snapshot.data;
+        if (profile == null) {
+          return const CompleteProfileScreen();
+        }
+        if (!profile.isAdmin && !profile.isApproved) {
+          return PendingApprovalScreen(user: profile);
+        }
+
+        return Provider<AppUser>.value(
+          value: profile,
+          child: const MainScreenNavigator(),
+        );
+      },
+    );
+  }
+}
+
+class _LoadingScreen extends StatelessWidget {
+  const _LoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
 
@@ -105,8 +206,7 @@ class _MainScreenNavigatorState extends State<MainScreenNavigator> {
   }
 
   Widget _buildDrawer(BuildContext context) {
-    final userEmail =
-        context.read<FirestoreService>().currentUserEmail ?? 'Cliente OptiLink';
+    final userName = context.read<AppUser>().displayName;
 
     return Drawer(
       child: ListView(
@@ -128,7 +228,7 @@ class _MainScreenNavigatorState extends State<MainScreenNavigator> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  userEmail,
+                  userName,
                   style: TextStyle(color: Colors.blue.shade200, fontSize: 14),
                 ),
               ],

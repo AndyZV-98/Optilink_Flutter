@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/firestore_service.dart';
+import 'register_screen.dart';
 
 /// Mensaje en español para un error de inicio de sesión de Firebase Auth.
 String authErrorMessage(String code) {
@@ -210,18 +211,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Las cuentas las crea el distribuidor: no hay registro propio.
+                  // Registro de una óptica nueva; queda pendiente de aprobación.
                   TextButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Contacta a tu distribuidor para crear una cuenta '
-                            'de óptica.',
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: _isLoading
+                        ? null
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const RegisterScreen(),
+                              ),
+                            );
+                          },
                     child: const Text('¿No tienes cuenta? Solicita acceso'),
                   ),
                 ],
