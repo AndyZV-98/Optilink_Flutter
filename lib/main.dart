@@ -51,7 +51,8 @@ class OptiLinkApp extends StatelessWidget {
       title: 'OptiLink B2B',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        // Azul de la marca para botones, chips y selección.
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue.shade700),
         appBarTheme: AppBarTheme(
           backgroundColor: Colors.blue.shade700,
           foregroundColor: Colors.white,

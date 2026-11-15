@@ -153,10 +153,14 @@ class OrderDetailBody extends StatelessWidget {
                 _buildDetailRow(
                   'Correo:',
                   Icons.email_outlined,
-                  Text(
-                    order.userEmail,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  // Un correo largo se reduce un poco en vez de partirse.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      order.userEmail,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
             ],

@@ -11,20 +11,57 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Catálogo: cualquier óptica con sesión lo puede leer. Los productos se
-    // administran desde la consola de Firebase (la consola no pasa por estas
-    // reglas), así que la app no puede modificarlos.
-    match /products/{productId} {
-      allow read: if signedIn();
-      allow write: if false;
+    function profilePath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
     }
 
-    // Pedidos: cada óptica crea y lee solo los suyos. El estado lo cambia el
-    // distribuidor desde la consola; la app no puede editar ni borrar pedidos.
-    match /orders/{orderId} {
-      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+    // Administrador: su perfil tiene role == 'admin'.
+    function isAdmin() {
+      return signedIn()
+        && exists(profilePath())
+        && get(profilePath()).data.role == 'admin';
+    }
+
+    // Óptica aprobada por el distribuidor.
+    function isApproved() {
+      return signedIn()
+        && exists(profilePath())
+        && get(profilePath()).data.status == 'aprobado';
+    }
+
+    // Perfiles. Cada cuenta crea el suyo como óptica pendiente y puede editar
+    // sus datos, pero no su rol ni su estado: eso solo lo cambia un
+    // administrador. El primer administrador se crea desde la consola.
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
 
       allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role == 'optica'
+        && request.resource.data.status == 'pendiente';
+
+      allow update: if isAdmin()
+        || (signedIn()
+            && request.auth.uid == uid
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.status == resource.data.status);
+
+      allow delete: if false;
+    }
+
+    // Catálogo: lo leen las ópticas aprobadas y lo administra el distribuidor.
+    match /products/{productId} {
+      allow read: if isApproved() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Pedidos: una óptica aprobada crea los suyos y cada óptica lee solo los
+    // suyos. El distribuidor los lee todos y es el único que cambia su estado.
+    match /orders/{orderId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+
+      allow create: if isApproved()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'Pendiente'
         && request.resource.data.orderDate == request.time
@@ -33,7 +70,8 @@ service cloud.firestore {
         && request.resource.data.totalAmount is number
         && request.resource.data.totalAmount >= 0;
 
-      allow update, delete: if false;
+      allow update: if isAdmin();
+      allow delete: if false;
     }
   }
 }
