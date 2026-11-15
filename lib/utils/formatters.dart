@@ -23,3 +23,9 @@ String formatCurrency(num amount) {
 String formatOrderDate(DateTime date) {
   return DateFormat('dd MMM yyyy, HH:mm', appLocale).format(date);
 }
+
+/// Convierte un número escrito con coma o punto decimal (`12,5` o `12.5`).
+/// Devuelve `null` si el texto no es un número.
+double? parseDecimal(String text) {
+  return double.tryParse(text.trim().replaceAll(',', '.'));
+}

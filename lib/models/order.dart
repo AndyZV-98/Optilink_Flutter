@@ -1,7 +1,34 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Estado con el que se crea todo pedido nuevo.
+/// Estados de un pedido. Todo pedido nuevo empieza en [orderStatusPending].
 const String orderStatusPending = 'Pendiente';
+const String orderStatusApproved = 'Aprobado';
+const String orderStatusShipped = 'Enviado';
+const String orderStatusDelivered = 'Entregado';
+const String orderStatusCancelled = 'Cancelado';
+
+/// Todos los estados, en el orden en que avanza un pedido.
+const List<String> orderStatuses = [
+  orderStatusPending,
+  orderStatusApproved,
+  orderStatusShipped,
+  orderStatusDelivered,
+  orderStatusCancelled,
+];
+
+/// Estados a los que el distribuidor puede pasar un pedido desde [status].
+List<String> nextOrderStatuses(String status) {
+  switch (status) {
+    case orderStatusPending:
+      return const [orderStatusApproved, orderStatusCancelled];
+    case orderStatusApproved:
+      return const [orderStatusShipped, orderStatusCancelled];
+    case orderStatusShipped:
+      return const [orderStatusDelivered];
+    default:
+      return const [];
+  }
+}
 
 /// Un producto dentro de un pedido ya confirmado.
 ///
@@ -37,10 +64,17 @@ class OrderedItem {
 class Order {
   final String id;
   final String userId;
+
+  /// Correo y razón social de la óptica, copiados al crear el pedido.
+  final String userEmail;
+  final String businessName;
   final List<OrderedItem> items;
   final double totalAmount;
   final DateTime orderDate;
   final String status;
+
+  /// `true` si al aprobar el pedido se descontó su stock del catálogo.
+  final bool stockDeducted;
 
   const Order({
     required this.id,
@@ -49,7 +83,16 @@ class Order {
     required this.totalAmount,
     required this.orderDate,
     required this.status,
+    this.userEmail = '',
+    this.businessName = '',
+    this.stockDeducted = false,
   });
+
+  /// Nombre de la óptica para mostrar: razón social o, si falta, el correo.
+  String get customerName {
+    if (businessName.isNotEmpty) return businessName;
+    return userEmail.isNotEmpty ? userEmail : 'Óptica sin nombre';
+  }
 
   /// Primeros caracteres del ID, para mostrar al usuario.
   String get shortId =>
@@ -65,6 +108,9 @@ class Order {
     return Order(
       id: id,
       userId: data['userId'] as String? ?? '',
+      userEmail: data['userEmail'] as String? ?? '',
+      businessName: data['businessName'] as String? ?? '',
+      stockDeducted: data['stockDeducted'] as bool? ?? false,
       items: rawItems
           .whereType<Map>()
           .map((item) => OrderedItem.fromMap(Map<String, dynamic>.from(item)))

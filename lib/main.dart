@@ -8,6 +8,7 @@ import 'firebase_options.dart';
 import 'models/app_user.dart';
 import 'providers/cart_provider.dart';
 import 'screens/account/account_screen.dart';
+import 'screens/admin/admin_navigator.dart';
 import 'screens/auth/account_status_screens.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/catalog/catalog_screen.dart';
@@ -162,7 +163,9 @@ class _ProfileGateState extends State<ProfileGate> {
 
         return Provider<AppUser>.value(
           value: profile,
-          child: const MainScreenNavigator(),
+          child: profile.isAdmin
+              ? const AdminNavigator()
+              : const MainScreenNavigator(),
         );
       },
     );

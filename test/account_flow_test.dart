@@ -37,7 +37,11 @@ void main() {
 
   Future<void> submit(WidgetTester tester, String label) async {
     final button = find.widgetWithText(ElevatedButton, label);
+    // Con un campo de texto enfocado, la lista vuelve a desplazarse hacia él.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
     await tester.ensureVisible(button);
+    await tester.pumpAndSettle();
     await tester.tap(button);
     await tester.pumpAndSettle();
   }

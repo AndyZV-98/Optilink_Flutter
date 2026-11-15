@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/order.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/max_width.dart';
 import '../../widgets/order_status_chip.dart';
 import '../../widgets/product_image.dart';
 
@@ -23,7 +24,28 @@ class OrderDetailScreen extends StatelessWidget {
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
       ),
-      body: SingleChildScrollView(
+      body: OrderDetailBody(order: order),
+    );
+  }
+}
+
+/// Contenido del detalle de un pedido: resumen, productos y total.
+///
+/// Con [showCustomer] incluye los datos de la óptica (vista del distribuidor).
+class OrderDetailBody extends StatelessWidget {
+  final Order order;
+  final bool showCustomer;
+
+  const OrderDetailBody({
+    required this.order,
+    this.showCustomer = false,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MaxWidth(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -116,6 +138,28 @@ class OrderDetailScreen extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const Divider(height: 10),
+            if (showCustomer) ...[
+              _buildDetailRow(
+                'Óptica:',
+                Icons.storefront,
+                Text(
+                  order.customerName,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              if (order.userEmail.isNotEmpty &&
+                  order.userEmail != order.customerName)
+                _buildDetailRow(
+                  'Correo:',
+                  Icons.email_outlined,
+                  Text(
+                    order.userEmail,
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+            ],
             _buildDetailRow(
               'Fecha:',
               Icons.calendar_today,
