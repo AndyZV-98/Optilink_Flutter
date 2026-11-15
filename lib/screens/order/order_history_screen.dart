@@ -1,39 +1,54 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../../models/order.dart';
 import '../../services/firestore_service.dart';
-import 'order_detail_screen.dart'; // ¡Importante para la navegación!
+import '../../utils/formatters.dart';
+import '../../widgets/order_status_chip.dart';
+import 'order_detail_screen.dart';
 
-// Pantalla que muestra el historial de pedidos del usuario
-class OrderHistoryScreen extends StatelessWidget {
+/// Lista de pedidos del usuario, del más reciente al más antiguo.
+class OrderHistoryScreen extends StatefulWidget {
   const OrderHistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Obtenemos el servicio de Firestore para acceder a los datos de pedidos
-    final firestoreService = Provider.of<FirestoreService>(
-      context,
-      listen: false,
-    );
+  State<OrderHistoryScreen> createState() => _OrderHistoryScreenState();
+}
 
+class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
+  late final Stream<List<Order>> _orders;
+
+  @override
+  void initState() {
+    super.initState();
+    _orders = context.read<FirestoreService>().getUserOrders();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<List<Order>>(
-      // Escuchamos los pedidos del usuario en tiempo real
-      stream: firestoreService.getUserOrders(),
+      stream: _orders,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
         if (snapshot.hasError) {
-          return Center(
-            child: Text('Error al cargar pedidos: ${snapshot.error}'),
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Text(
+                'No se pudieron cargar tus pedidos. Revisa tu conexión e '
+                'inténtalo de nuevo.',
+                textAlign: TextAlign.center,
+              ),
+            ),
           );
         }
 
-        final orders = snapshot.data;
+        final orders = snapshot.data ?? const <Order>[];
 
-        if (orders == null || orders.isEmpty) {
+        if (orders.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -53,47 +68,34 @@ class OrderHistoryScreen extends StatelessWidget {
           );
         }
 
-        // Si hay pedidos, los mostramos en una lista
         return ListView.builder(
           padding: const EdgeInsets.all(8.0),
           itemCount: orders.length,
-          itemBuilder: (context, index) {
-            final order = orders[index];
-            return OrderCard(order: order);
-          },
+          itemBuilder: (context, index) => OrderCard(order: orders[index]),
         );
       },
     );
   }
 }
 
-// Widget para mostrar la información resumida de un pedido
+/// Tarjeta con el resumen de un pedido.
 class OrderCard extends StatelessWidget {
   final Order order;
+
   const OrderCard({required this.order, super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Formateadores de datos
-    final currencyFormatter = NumberFormat.currency(
-      locale: 'es_CL',
-      symbol: '\$',
-    );
-    final dateFormatter = DateFormat('dd MMM yyyy, hh:mm a');
-
     return Card(
       elevation: 3,
       margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: InkWell(
-        // Acción de clic: Navegamos a la pantalla de detalle
         onTap: () {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => OrderDetailScreen(
-                order: order,
-              ), // Usamos la pantalla que creamos antes
+              builder: (context) => OrderDetailScreen(order: order),
             ),
           );
         },
@@ -103,43 +105,50 @@ class OrderCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ID del Pedido y Fecha
+              // Número de pedido y estado
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Pedido #${order.id.substring(0, 8)}...',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                  Expanded(
+                    child: Text(
+                      'Pedido #${order.shortId}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
-                  Text(
-                    dateFormatter.format(order.orderDate),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
+                  const SizedBox(width: 8),
+                  OrderStatusChip(status: order.status),
                 ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                formatOrderDate(order.orderDate),
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
               const Divider(height: 16),
 
-              // Muestra un resumen de los primeros 3 ítems
+              // Resumen de los primeros 3 ítems
               ...order.items
                   .take(3)
                   .map(
                     (item) => Padding(
                       padding: const EdgeInsets.only(bottom: 4.0),
                       child: Text(
-                        '${item.quantity}x ${item.productId.name}',
+                        '${item.quantity} x ${item.name}',
                         style: const TextStyle(fontSize: 14),
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
 
-              // Indicador si hay más ítems
               if (order.items.length > 3)
                 Text(
-                  '+ ${order.items.length - 3} ítems más',
+                  '+ ${order.items.length - 3} productos más',
                   style: const TextStyle(
                     fontSize: 14,
                     fontStyle: FontStyle.italic,
@@ -149,7 +158,7 @@ class OrderCard extends StatelessWidget {
 
               const SizedBox(height: 12),
 
-              // Total del Pedido
+              // Total del pedido
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -162,7 +171,7 @@ class OrderCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    currencyFormatter.format(order.totalAmount),
+                    formatCurrency(order.totalAmount),
                     style: TextStyle(
                       fontWeight: FontWeight.w900,
                       fontSize: 20,
@@ -177,8 +186,4 @@ class OrderCard extends StatelessWidget {
       ),
     );
   }
-}
-
-extension on String {
-  get name => null;
 }

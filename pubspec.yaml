@@ -31,9 +31,13 @@ dependencies:
   flutter:
     sdk: flutter
     #Firebase Core Services
-  firebase_core: ^2.24.2
-  cloud_firestore: ^4.13.4
-  firebase_auth: ^4.15.2
+  firebase_core: ^4.11.0
+  # Por debajo de 6.7: es la última serie que soporta fake_cloud_firestore con
+  # Flutter 3.35 (las versiones nuevas del simulador exigen un Flutter más reciente).
+  cloud_firestore: '>=6.6.0 <6.7.0'
+  # 6.5.5 se publicó con una dependencia mal declarada y no compila con esta
+  # serie de firebase_core.
+  firebase_auth: '>=6.5.3 <6.5.5'
     #State Management
   provider: ^6.1.1
     #Utillity for Currency Formatting
@@ -42,6 +46,10 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
+  excel: ^4.0.6
+  file_picker: ^11.0.3
+  archive: ^3.6.1
+  xml: ^6.6.1
 
 dev_dependencies:
   flutter_test:
@@ -53,6 +61,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^3.0.1
+  fake_cloud_firestore: ^4.1.1
+  firebase_auth_mocks: ^0.15.2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
