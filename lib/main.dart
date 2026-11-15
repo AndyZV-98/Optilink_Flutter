@@ -1,33 +1,36 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
-// Importaciones de archivos locales
+
+import 'firebase_options.dart';
+import 'providers/cart_provider.dart';
+import 'screens/account/account_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/catalog/catalog_screen.dart';
 import 'screens/order/cart_screen.dart';
-import 'screens/order/order_history_screen.dart'; // ¡Importación de la nueva pantalla!
+import 'screens/order/order_history_screen.dart';
 import 'services/firestore_service.dart';
-import 'providers/cart_provider.dart';
+import 'utils/formatters.dart';
 
-// Es crucial inicializar Firebase antes de usar la app
-void main() async {
-  // ... (cuerpo de main() sin modificación)
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializamos Firebase.
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Inyectamos el FirestoreService una vez
+  // Nombres de meses en español para las fechas de los pedidos.
+  await initializeDateFormatting(appLocale);
+
   final firestoreService = FirestoreService();
 
   runApp(
     MultiProvider(
       providers: [
-        // Provee el servicio de Firebase Auth y Firestore a toda la app
-        Provider<FirestoreService>(create: (_) => firestoreService),
-        // Provee el estado del carrito, requiere la instancia de FirestoreService
-        ChangeNotifierProvider(create: (_) => CartProvider(firestoreService)),
+        Provider<FirestoreService>.value(value: firestoreService),
+        ChangeNotifierProvider(
+          create: (_) => CartProvider(firestoreService.placeOrder),
+        ),
       ],
       child: const OptiLinkApp(),
     ),
@@ -35,7 +38,6 @@ void main() async {
 }
 
 class OptiLinkApp extends StatelessWidget {
-  // ... (cuerpo de OptiLinkApp sin modificación)
   const OptiLinkApp({super.key});
 
   @override
@@ -45,36 +47,37 @@ class OptiLinkApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        fontFamily: 'Inter',
         appBarTheme: AppBarTheme(
           backgroundColor: Colors.blue.shade700,
           foregroundColor: Colors.white,
         ),
         useMaterial3: true,
       ),
-      // Usa StreamBuilder para escuchar los cambios de autenticación de Firebase
+      // La pantalla inicial depende de si hay una sesión iniciada.
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
-          // Muestra un indicador de carga mientras se verifica el estado de Auth
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
           }
 
-          // Si el usuario está logueado, vamos al Catálogo (pantalla principal)
-          if (snapshot.hasData && snapshot.data != null) {
-            return const MainScreenNavigator();
+          final user = snapshot.data;
+          if (user == null) {
+            return const LoginScreen();
           }
 
-          // Si el usuario NO está logueado, vamos a la pantalla de Login
-          return const LoginScreen();
+          // La clave fuerza a reconstruir las pantallas (y sus consultas a
+          // Firestore) si inicia sesión una cuenta distinta.
+          return MainScreenNavigator(key: ValueKey(user.uid));
         },
       ),
     );
   }
 }
 
-// Navegador principal post-login
+/// Navegación principal tras iniciar sesión: Catálogo, Pedidos y Cuenta.
 class MainScreenNavigator extends StatefulWidget {
   const MainScreenNavigator({super.key});
 
@@ -83,31 +86,27 @@ class MainScreenNavigator extends StatefulWidget {
 }
 
 class _MainScreenNavigatorState extends State<MainScreenNavigator> {
-  int _selectedIndex = 0;
-
-  // Lista de pantallas principales - ¡MODIFICACIÓN AQUÍ!
-  static final List<Widget> _widgetOptions = <Widget>[
-    const CatalogScreen(),
-    const OrderHistoryScreen(), // ¡Ahora va a la pantalla de Historial de Pedidos!
-    const Center(child: Text('Pantalla de Cuenta / Historial (Próximamente)')),
+  static const List<String> _titles = ['Catálogo', 'Pedidos', 'Cuenta'];
+  static const List<Widget> _screens = [
+    CatalogScreen(),
+    OrderHistoryScreen(),
+    AccountScreen(),
   ];
 
-  // ... (cuerpo del resto de _MainScreenNavigatorState sin modificación)
+  int _selectedIndex = 0;
+
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    setState(() => _selectedIndex = index);
   }
 
-  // Widget para el menú lateral
+  void _selectFromDrawer(int index) {
+    Navigator.pop(context);
+    _onItemTapped(index);
+  }
+
   Widget _buildDrawer(BuildContext context) {
-    final firestoreService = Provider.of<FirestoreService>(
-      context,
-      listen: false,
-    );
-    // Obtenemos el usuario actual para mostrar su email
     final userEmail =
-        FirebaseAuth.instance.currentUser?.email ?? 'Cliente OptiLink';
+        context.read<FirestoreService>().currentUserEmail ?? 'Cliente OptiLink';
 
     return Drawer(
       child: ListView(
@@ -139,37 +138,27 @@ class _MainScreenNavigatorState extends State<MainScreenNavigator> {
             leading: const Icon(Icons.shopping_bag),
             title: const Text('Catálogo de Productos'),
             selected: _selectedIndex == 0,
-            onTap: () {
-              _onItemTapped(0);
-              Navigator.pop(context);
-            },
+            onTap: () => _selectFromDrawer(0),
           ),
           ListTile(
             leading: const Icon(Icons.local_shipping),
             title: const Text('Mis Pedidos'),
             selected: _selectedIndex == 1,
-            onTap: () {
-              _onItemTapped(1);
-              Navigator.pop(context);
-            },
+            onTap: () => _selectFromDrawer(1),
           ),
           ListTile(
-            leading: const Icon(Icons.history),
-            title: const Text('Historial de Compras'),
+            leading: const Icon(Icons.person),
+            title: const Text('Mi Cuenta'),
             selected: _selectedIndex == 2,
-            onTap: () {
-              _onItemTapped(2);
-              Navigator.pop(context);
-            },
+            onTap: () => _selectFromDrawer(2),
           ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text('Cerrar Sesión'),
-            onTap: () async {
-              await firestoreService.signOut();
-              // La app se redirigirá automáticamente al LoginScreen gracias al StreamBuilder en OptiLinkApp
+            onTap: () {
               Navigator.pop(context);
+              signOutAndClearCart(context);
             },
           ),
         ],
@@ -179,60 +168,35 @@ class _MainScreenNavigatorState extends State<MainScreenNavigator> {
 
   @override
   Widget build(BuildContext context) {
-    // Escuchamos el carrito para mostrar el contador de ítems
-    final cartProvider = Provider.of<CartProvider>(context);
+    final cartItemCount = context.watch<CartProvider>().itemCount;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _selectedIndex == 0
-              ? 'Catálogo'
-              : _selectedIndex == 1
-              ? 'Pedidos'
-              : 'Historial',
+          _titles[_selectedIndex],
           style: const TextStyle(color: Colors.white),
         ),
         actions: [
-          // Botón del Carrito con Contador
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.shopping_cart),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const CartScreen()),
-                  );
-                },
-              ),
-              if (cartProvider.items.isNotEmpty)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Text(
-                      '${cartProvider.items.length}',
-                      style: const TextStyle(color: Colors.white, fontSize: 10),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
+          Badge(
+            label: Text('$cartItemCount'),
+            isLabelVisible: cartItemCount > 0,
+            offset: const Offset(-4, 4),
+            child: IconButton(
+              icon: const Icon(Icons.shopping_cart),
+              tooltip: 'Carrito',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CartScreen()),
+                );
+              },
+            ),
           ),
         ],
       ),
       drawer: _buildDrawer(context),
-      body: _widgetOptions.elementAt(_selectedIndex),
-      // Bottom Navigation Bar para una navegación rápida en móvil
+      // IndexedStack conserva el estado de cada pestaña al cambiar entre ellas.
+      body: IndexedStack(index: _selectedIndex, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
@@ -243,10 +207,7 @@ class _MainScreenNavigatorState extends State<MainScreenNavigator> {
             icon: Icon(Icons.local_shipping),
             label: 'Pedidos',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'Historial',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Cuenta'),
         ],
         currentIndex: _selectedIndex,
         selectedItemColor: Colors.blue.shade700,

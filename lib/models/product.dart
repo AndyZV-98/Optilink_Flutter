@@ -5,8 +5,14 @@ class Product {
   final String name;
   final String category;
   final String description;
+
+  /// Precio unitario en dólares.
   final double price;
-  final int stock;
+
+  /// Unidades disponibles. `null` si el producto no lleva control de stock
+  /// (el documento de Firestore no tiene el campo `stock`).
+  final int? stock;
+
   final String imageUrl;
   final bool isFeatured;
 
@@ -21,100 +27,24 @@ class Product {
     required this.isFeatured,
   });
 
-  // **********************************************
-  // ** SERIALIZACIÓN PARA JSON (NUEVO: .toJson) **
-  // **********************************************
+  /// `true` cuando el producto lleva control de stock y no quedan unidades.
+  bool get isOutOfStock => stock != null && stock! <= 0;
 
-  /// Convierte el objeto Product a un Map (JSON).
-  /// Requerido por CartItem para guardar el pedido en Firestore.
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'category': category,
-      'description': description,
-      'price': price,
-      'stock': stock,
-      'imageUrl': imageUrl,
-      'isFeatured': isFeatured,
-    };
-  }
+  /// Indica si se pueden pedir [quantity] unidades en total.
+  bool canOrder(int quantity) => stock == null || quantity <= stock!;
 
-  // **********************************************
-  // ** DESERIALIZACIÓN DESDE JSON (NUEVO: .fromJson) **
-  // **********************************************
-
-  /// Factory constructor para reconstruir el Product desde un Map (JSON).
-  /// Requerido por CartItem al leer pedidos de Firestore.
-  factory Product.fromJson(Map<String, dynamic> data) {
-    return Product(
-      id: data['id'] as String? ?? '',
-      name: data['name'] ?? 'Nombre Desconocido',
-      category: data['category'] ?? 'General',
-      description: data['description'] ?? 'Sin descripción',
-      price: (data['price'] as num?)?.toDouble() ?? 0.0,
-      stock: (data['stock'] as int?) ?? 0,
-      imageUrl: data['imageUrl'] ?? 'https://placehold.co/600x400',
-      isFeatured: data['isFeatured'] ?? false,
-    );
-  }
-
-  // **********************************************
-  // ** DESERIALIZACIÓN DESDE FIRESTORE (Original: .fromFirestore) **
-  // **********************************************
-
-  // FACTORY para construir un objeto Product a partir de un DocumentSnapshot de Firestore
+  /// Construye un [Product] a partir de un documento de la colección `products`.
   factory Product.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data()!; // Asumimos que los datos existen
+    final data = doc.data() ?? const <String, dynamic>{};
     return Product(
       id: doc.id,
-      name: data['name'] ?? 'Nombre Desconocido',
-      category: data['category'] ?? 'General',
-      description: data['description'] ?? 'Sin descripción',
+      name: data['name'] as String? ?? 'Nombre desconocido',
+      category: data['category'] as String? ?? 'General',
+      description: data['description'] as String? ?? 'Sin descripción',
       price: (data['price'] as num?)?.toDouble() ?? 0.0,
-      stock: (data['stock'] as int?) ?? 0,
-      imageUrl: data['imageUrl'] ?? 'https://placehold.co/600x400',
-      isFeatured: data['isFeatured'] ?? false,
+      stock: (data['stock'] as num?)?.toInt(),
+      imageUrl: data['imageUrl'] as String? ?? '',
+      isFeatured: data['isFeatured'] as bool? ?? false,
     );
   }
 }
-// import 'package:cloud_firestore/cloud_firestore.dart';
-
-// class Product {
-//   final String id;
-//   final String name;
-//   final String category;
-//   final String description;
-//   final double price;
-//   final int stock;
-//   final String imageUrl;
-//   final bool isFeatured;
-
-//   const Product({
-//     required this.id,
-//     required this.name,
-//     required this.category,
-//     required this.description,
-//     required this.price,
-//     required this.stock,
-//     required this.imageUrl,
-//     required this.isFeatured,
-//   });
-
-//   // FACTORY para construir un objeto Product a partir de un DocumentSnapshot de Firestore
-//   factory Product.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-//     final data = doc.data()!; // Asumimos que los datos existen
-//     return Product(
-//       id: doc.id,
-//       name: data['name'] ?? 'Nombre Desconocido',
-//       category: data['category'] ?? 'General',
-//       description: data['description'] ?? 'Sin descripción',
-//       price: (data['price'] as num?)?.toDouble() ?? 0.0,
-//       stock: (data['stock'] as int?) ?? 0,
-//       imageUrl:
-//           data['imageUrl'] ??
-//           '[https://placehold.co/600x400](https://placehold.co/600x400)',
-//       isFeatured: data['isFeatured'] ?? false,
-//     );
-//   }
-// }

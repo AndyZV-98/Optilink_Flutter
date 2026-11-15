@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import '../../models/order.dart';
 
-// Pantalla para ver el desglose completo de un pedido específico.
+import '../../models/order.dart';
+import '../../utils/formatters.dart';
+import '../../widgets/order_status_chip.dart';
+import '../../widgets/product_image.dart';
+
+/// Desglose completo de un pedido.
 class OrderDetailScreen extends StatelessWidget {
   final Order order;
 
@@ -10,17 +13,10 @@ class OrderDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Configuramos los formateadores de moneda y fecha
-    final currencyFormatter = NumberFormat.currency(
-      locale: 'es_CL',
-      symbol: '\$',
-    );
-    final dateFormatter = DateFormat('dd MMMM yyyy, hh:mm a');
-
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Detalle de Pedido #${order.id.substring(0, 8)}',
+          'Pedido #${order.shortId}',
           style: const TextStyle(color: Colors.white),
         ),
         backgroundColor: Colors.blue.shade700,
@@ -32,14 +28,10 @@ class OrderDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- Resumen del Pedido ---
-            _buildSummaryCard(dateFormatter, currencyFormatter),
-
+            _buildSummaryCard(),
             const SizedBox(height: 20),
-
-            // --- Título de Ítems ---
             Text(
-              'Productos Solicitados (${order.items.length})',
+              'Productos solicitados (${order.items.length})',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -47,90 +39,70 @@ class OrderDetailScreen extends StatelessWidget {
               ),
             ),
             const Divider(height: 15, thickness: 2),
-
-            // --- Lista de Ítems del Pedido ---
-            ...order.items.map((item) {
-              final subtotal = item.productId.price * item.quantity;
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Imagen Placeholder/Miniatura
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Image.network(
-                        item.productId.imageUrl ??
-                            'https://via.placeholder.com/50',
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 50,
-                          height: 50,
-                          color: Colors.grey.shade200,
-                          child: const Icon(
-                            Icons.lens_outlined,
-                            color: Colors.grey,
-                            size: 28,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-
-                    // Descripción y Cantidad
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.productId.name ?? 'Producto Desconocido',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${currencyFormatter.format(item.productId.price)} x ${item.quantity} unidades',
-                            style: const TextStyle(color: Colors.black54),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Subtotal
-                    Text(
-                      currencyFormatter.format(subtotal),
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: Colors.green.shade700,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-
+            ...order.items.map(_buildItemRow),
             const Divider(height: 15, thickness: 2),
-
-            // --- Total Final ---
-            _buildTotalFooter(currencyFormatter),
+            _buildTotalFooter(),
           ],
         ),
       ),
     );
   }
 
-  // Widget de tarjeta resumen (Fecha y Estado)
-  Widget _buildSummaryCard(
-    DateFormat dateFormatter,
-    NumberFormat currencyFormatter,
-  ) {
+  // Fila de un producto del pedido
+  Widget _buildItemRow(OrderedItem item) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: ProductImage(
+              url: item.imageUrl,
+              width: 50,
+              height: 50,
+              iconSize: 28,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${formatCurrency(item.price)} x ${item.quantity} '
+                  '${item.quantity == 1 ? 'unidad' : 'unidades'}',
+                  style: const TextStyle(color: Colors.black54),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            formatCurrency(item.subtotal),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: Colors.green.shade700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Tarjeta con fecha, número y estado
+  Widget _buildSummaryCard() {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -140,27 +112,38 @@ class OrderDetailScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Información del Pedido',
+              'Información del pedido',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const Divider(height: 10),
             _buildDetailRow(
               'Fecha:',
-              dateFormatter.format(order.orderDate),
               Icons.calendar_today,
+              Text(
+                formatOrderDate(order.orderDate),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
             _buildDetailRow(
-              'ID Corto:',
-              order.id.substring(0, 10),
+              'Número:',
               Icons.confirmation_number,
+              Text(
+                order.shortId,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            _buildDetailRow(
+              'Unidades:',
+              Icons.inventory_2_outlined,
+              Text(
+                '${order.totalUnits}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
             _buildDetailRow(
               'Estado:',
-              // Asumimos que el modelo Order debería tener un campo 'status'
-              // Como no lo definimos, usamos un valor estático por ahora
-              'Pendiente de Aprobación',
               Icons.pending_actions,
-              color: Colors.orange.shade700,
+              OrderStatusChip(status: order.status),
             ),
           ],
         ),
@@ -168,35 +151,24 @@ class OrderDetailScreen extends StatelessWidget {
     );
   }
 
-  // Widget auxiliar para filas de detalle
-  Widget _buildDetailRow(
-    String label,
-    String value,
-    IconData icon, {
-    Color? color,
-  }) {
+  Widget _buildDetailRow(String label, IconData icon, Widget value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         children: [
           Icon(icon, size: 18, color: Colors.grey),
           const SizedBox(width: 8),
-          Text('$label ', style: const TextStyle(fontWeight: FontWeight.w500)),
-          const Expanded(child: SizedBox()),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: color ?? Colors.black87,
-            ),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Align(alignment: Alignment.centerRight, child: value),
           ),
         ],
       ),
     );
   }
 
-  // Widget para mostrar el total final
-  Widget _buildTotalFooter(NumberFormat currencyFormatter) {
+  Widget _buildTotalFooter() {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
@@ -208,7 +180,7 @@ class OrderDetailScreen extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
-            'TOTAL FINAL:',
+            'TOTAL:',
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
@@ -216,7 +188,7 @@ class OrderDetailScreen extends StatelessWidget {
             ),
           ),
           Text(
-            currencyFormatter.format(order.totalAmount),
+            formatCurrency(order.totalAmount),
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w900,
@@ -227,12 +199,4 @@ class OrderDetailScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-extension on String {
-  String? get imageUrl => null;
-
-  get price => null;
-
-  String? get name => null;
 }

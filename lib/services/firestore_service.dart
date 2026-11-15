@@ -1,104 +1,103 @@
-import 'package:cloud_firestore/cloud_firestore.dart'
-    hide Order; // Oculta la enumeración Order de Firestore
+import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/product.dart';
+
 import '../models/order.dart';
+import '../models/product.dart';
 
-// Clase Singleton para manejar las interacciones con Firestore
+/// Acceso a Firebase Auth y a las colecciones `products` y `orders`.
 class FirestoreService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  /// Por defecto usa las instancias reales de Firebase; las pruebas pueden
+  /// pasar instancias simuladas.
+  FirestoreService({FirebaseFirestore? db, FirebaseAuth? auth})
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
-  // --- Catálogo de Productos ---
-
-  // Obtiene un Stream de productos en tiempo real
-  Stream<List<Product>> getProducts() {
-    return _db
-        .collection('products')
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              // Usa Product.fromFirestore
-              .map(
-                (doc) => Product.fromFirestore(
-                  doc as DocumentSnapshot<Map<String, dynamic>>,
-                ),
-              )
-              .toList(),
-        );
-  }
+  final FirebaseFirestore _db;
+  final FirebaseAuth _auth;
 
   // --- Autenticación ---
 
-  // Obtiene el ID del usuario actualmente logueado
+  /// ID del usuario con sesión iniciada, o `null` si no hay sesión.
   String? get currentUserId => _auth.currentUser?.uid;
 
-  // Cierra la sesión
-  Future<void> signOut() async {
-    await _auth.signOut();
-  }
+  /// Correo del usuario con sesión iniciada.
+  String? get currentUserEmail => _auth.currentUser?.email;
 
-  // Inicia sesión con email y contraseña
+  /// Inicia sesión con correo y contraseña.
+  ///
+  /// Lanza [FirebaseAuthException] si las credenciales no son válidas.
   Future<User?> signIn(String email, String password) async {
-    try {
-      final credential = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      return credential.user;
-    } on FirebaseAuthException catch (e) {
-      rethrow;
-    } catch (e) {
-      rethrow;
-    }
+    final credential = await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    return credential.user;
   }
 
-  // Confirma un pedido guardándolo en Firestore.
+  /// Envía un correo para restablecer la contraseña.
+  Future<void> sendPasswordReset(String email) {
+    return _auth.sendPasswordResetEmail(email: email);
+  }
+
+  Future<void> signOut() => _auth.signOut();
+
+  // --- Catálogo ---
+
+  /// Productos del catálogo en tiempo real, ordenados por nombre.
+  Stream<List<Product>> getProducts() {
+    return _db.collection('products').snapshots().map((snapshot) {
+      final products = snapshot.docs.map(Product.fromFirestore).toList();
+      products.sort(
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      );
+      return products;
+    });
+  }
+
+  // --- Pedidos ---
+
+  /// Guarda un pedido del usuario actual en la colección `orders`.
+  ///
+  /// Cada elemento de [items] debe tener el formato de `CartItem.toOrderItem`.
   Future<void> placeOrder({
     required List<Map<String, dynamic>> items,
     required double totalAmount,
   }) async {
     final userId = currentUserId;
-
     if (userId == null) {
-      throw Exception("Usuario no autenticado para realizar el pedido.");
+      throw StateError('No hay una sesión iniciada para realizar el pedido.');
     }
 
-    // 1. Crear un documento en la colección 'orders'
     await _db.collection('orders').add({
       'userId': userId,
-      'orderDate':
-          FieldValue.serverTimestamp(), // Usa el timestamp del servidor para la fecha
+      'userEmail': currentUserEmail,
+      'orderDate': FieldValue.serverTimestamp(),
       'totalAmount': totalAmount,
       'items': items,
-      'status': 'Pendiente', // Estado inicial del pedido
+      'status': orderStatusPending,
     });
   }
 
-  // Obtiene un Stream de pedidos del usuario actual
+  /// Pedidos del usuario actual en tiempo real, del más reciente al más antiguo.
+  ///
+  /// Se ordena en el dispositivo para no depender de un índice compuesto en
+  /// Firestore (`userId` + `orderDate`).
   Stream<List<Order>> getUserOrders() {
     final userId = currentUserId;
     if (userId == null) {
-      // Retorna un stream vacío si no hay usuario logueado
-      return Stream.value([]);
+      return Stream.value(const []);
     }
 
     return _db
         .collection('orders')
-        .where(
-          'userId',
-          isEqualTo: userId,
-        ) // Filtra solo los pedidos del usuario actual
-        .orderBy(
-          'orderDate',
-          descending: true,
-        ) // Ordena por fecha de más reciente a más antiguo
+        .where('userId', isEqualTo: userId)
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              // La llamada a Order.fromMap: ahora es válida
-              .map((doc) => Order.fromMap(doc.id, doc.data()!))
-              .toList(),
-        );
+        .map((snapshot) {
+          final orders = snapshot.docs
+              .map((doc) => Order.fromMap(doc.id, doc.data()))
+              .toList();
+          orders.sort((a, b) => b.orderDate.compareTo(a.orderDate));
+          return orders;
+        });
   }
 }

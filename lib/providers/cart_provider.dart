@@ -1,273 +1,139 @@
-import 'package:flutter/material.dart';
-import 'package:optilink_app/services/firestore_service.dart';
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
+
 import '../models/cart_item.dart';
 import '../models/product.dart';
-import '../models/order.dart'; // Nuevo modelo de datos
 
-// Clase para gestionar el estado del carrito y el historial de pedidos
+/// Función que guarda un pedido (en producción, `FirestoreService.placeOrder`).
+typedef OrderSubmitter =
+    Future<void> Function({
+      required List<Map<String, dynamic>> items,
+      required double totalAmount,
+    });
+
+/// Estado del carrito de compras.
+///
+/// El carrito vive en memoria: se pierde al cerrar la app.
 class CartProvider with ChangeNotifier {
-  // Lista de items actualmente en el carrito
+  CartProvider(this._submitOrder);
+
+  final OrderSubmitter _submitOrder;
   final List<CartItem> _items = [];
+  bool _isPlacingOrder = false;
 
-  // Lista para almacenar el historial de pedidos
-  final List<Order> _orderHistory = [];
+  List<CartItem> get items => List.unmodifiable(_items);
 
-  CartProvider(FirestoreService firestoreService);
+  /// `true` mientras se está enviando un pedido.
+  bool get isPlacingOrder => _isPlacingOrder;
 
-  List<CartItem> get items => _items;
-  List<Order> get orderHistory => _orderHistory;
+  /// Cantidad de productos distintos en el carrito.
+  int get itemCount => _items.length;
 
-  // Calcula la cantidad total de artículos únicos en el carrito
-  int get itemCount {
-    return _items.length;
-  }
+  /// Suma de unidades de todos los productos.
+  int get totalQuantity =>
+      _items.fold(0, (total, item) => total + item.quantity);
 
-  // Calcula la cantidad total de unidades de productos en el carrito
-  int get totalQuantity {
-    return _items.fold(0, (sum, item) => sum + item.quantity);
-  }
-
-  // Calcula el monto total del carrito
+  /// Monto total del carrito, redondeado a centavos.
   double get totalAmount {
-    return _items.fold(
-      0.0,
-      (sum, item) => sum + (item.product.price * item.quantity),
-    );
+    final total = _items.fold(0.0, (total, item) => total + item.subtotal);
+    return (total * 100).round() / 100;
   }
 
-  // Añade un producto al carrito o incrementa la cantidad si ya existe.
-  void addItem(Product product) {
-    // Busca si el producto ya está en el carrito
-    final existingItemIndex = _items.indexWhere(
-      (item) => item.product.id == product.id,
-    );
+  /// Unidades de un producto que ya están en el carrito.
+  int quantityOf(String productId) {
+    final index = _indexOf(productId);
+    return index >= 0 ? _items[index].quantity : 0;
+  }
 
-    if (existingItemIndex >= 0) {
-      // Si existe, incrementa la cantidad
-      _items[existingItemIndex] = CartItem(
-        product: product,
-        quantity: _items[existingItemIndex].quantity + 1,
-      );
+  /// Añade [quantity] unidades de [product], sin superar su stock.
+  ///
+  /// Devuelve cuántas unidades se añadieron realmente (0 si no queda stock).
+  int addItem(Product product, {int quantity = 1}) {
+    if (quantity <= 0) return 0;
+
+    final index = _indexOf(product.id);
+    final current = index >= 0 ? _items[index].quantity : 0;
+    final stock = product.stock;
+    final added = stock == null
+        ? quantity
+        : math.max(0, math.min(quantity, stock - current));
+    if (added == 0) return 0;
+
+    final updated = CartItem(product: product, quantity: current + added);
+    if (index >= 0) {
+      _items[index] = updated;
     } else {
-      // Si no existe, crea un nuevo CartItem
-      _items.add(CartItem(product: product, quantity: 1));
+      _items.add(updated);
     }
-
     notifyListeners();
+    return added;
   }
 
-  // Remueve un item completamente del carrito
+  /// Quita un producto del carrito.
   void removeItem(String productId) {
     _items.removeWhere((item) => item.product.id == productId);
     notifyListeners();
   }
 
-  // Incrementa la cantidad de un item existente
-  void incrementQuantity(CartItem item) {
-    final existingItemIndex = _items.indexWhere(
-      (i) => i.product.id == item.product.id,
-    );
-    if (existingItemIndex >= 0) {
-      _items[existingItemIndex] = CartItem(
-        product: item.product,
-        quantity: item.quantity + 1,
-      );
-      notifyListeners();
-    }
-  }
+  /// Suma una unidad. Devuelve `false` si se alcanzó el stock disponible.
+  bool incrementQuantity(CartItem item) {
+    final index = _indexOf(item.product.id);
+    if (index < 0) return false;
 
-  // Decrementa la cantidad de un item. Si llega a 0, lo elimina.
-  void decrementQuantity(CartItem item) {
-    final existingItemIndex = _items.indexWhere(
-      (i) => i.product.id == item.product.id,
-    );
-    if (existingItemIndex >= 0) {
-      if (item.quantity > 1) {
-        // Decrementa la cantidad
-        _items[existingItemIndex] = CartItem(
-          product: item.product,
-          quantity: item.quantity - 1,
-        );
-      } else {
-        // Si la cantidad es 1, elimina el item
-        _items.removeAt(existingItemIndex);
-      }
-      notifyListeners();
-    }
-  }
+    final current = _items[index];
+    if (!current.product.canOrder(current.quantity + 1)) return false;
 
-  // Simula la colocación de un pedido
-  Future<bool> placeOrder() async {
-    if (_items.isEmpty) {
-      // No se puede realizar un pedido con un carrito vacío
-      return false;
-    }
-
-    // 1. Crear el objeto Order
-    // *******************************************************************
-    // ** CORRECCIÓN DE ERRORES: Se agregaron 'userId', se cambió 'date'
-    // ** por 'orderDate' y 'total' por 'totalAmount' según el nuevo modelo.
-    // *******************************************************************
-    final newOrder = Order(
-      id: DateTime.now().toIso8601String(), // ID basado en timestamp
-      userId: 'simulated-user-001', // ID de usuario temporal requerido
-      orderDate: DateTime.now(), // Nombre de parámetro corregido
-      items: List.of(
-        _items as Iterable<OrderedItem>,
-      ), // Copia de los items del carrito
-      totalAmount: totalAmount, // Nombre de parámetro corregido
-      status: 'Procesando', // Estado inicial
-    );
-
-    // 2. Agregar el pedido al historial
-    _orderHistory.insert(
-      0,
-      newOrder,
-    ); // Insertamos al inicio para que el más reciente esté primero
-
-    // 3. Limpiar el carrito
-    _items.clear();
-
-    // 4. Notificar a los listeners del cambio en el historial y el carrito
+    _items[index] = current.copyWith(quantity: current.quantity + 1);
     notifyListeners();
-
-    // Simulación de éxito
     return true;
   }
 
-  // Función para simular la carga de historial (si fuese una app real, aquí se usaría un FutureBuilder con Firebase)
-  void loadOrderHistory() {
-    // Si tuviéramos persistencia, aquí cargaríamos los datos.
-    // Para esta simulación, asumimos que los datos ya están en _orderHistory.
+  /// Resta una unidad. Si la cantidad llega a 0, quita el producto.
+  void decrementQuantity(CartItem item) {
+    final index = _indexOf(item.product.id);
+    if (index < 0) return;
+
+    final current = _items[index];
+    if (current.quantity > 1) {
+      _items[index] = current.copyWith(quantity: current.quantity - 1);
+    } else {
+      _items.removeAt(index);
+    }
     notifyListeners();
   }
+
+  /// Vacía el carrito (por ejemplo, al cerrar sesión).
+  void clear() {
+    if (_items.isEmpty) return;
+    _items.clear();
+    notifyListeners();
+  }
+
+  /// Envía el carrito como un pedido y lo vacía si se guardó correctamente.
+  ///
+  /// Devuelve `false` si no había nada que enviar o ya hay un envío en curso.
+  /// Si el guardado falla, relanza el error y el carrito queda intacto.
+  Future<bool> placeOrder() async {
+    if (_items.isEmpty || _isPlacingOrder) return false;
+
+    _isPlacingOrder = true;
+    notifyListeners();
+
+    try {
+      await _submitOrder(
+        items: _items.map((item) => item.toOrderItem()).toList(),
+        totalAmount: totalAmount,
+      );
+      _items.clear();
+      return true;
+    } finally {
+      _isPlacingOrder = false;
+      notifyListeners();
+    }
+  }
+
+  int _indexOf(String productId) {
+    return _items.indexWhere((item) => item.product.id == productId);
+  }
 }
-// import 'package:flutter/material.dart';
-// import '../models/cart_item.dart';
-// import '../models/product.dart';
-// import '../models/order.dart'; // Nuevo modelo de datos
-
-// // Clase Order para simular un pedido en el historial
-// // Esta clase será removida y reemplazada por un Order.dart más completo
-// // Más adelante, se importará desde 'models/order.dart'
-
-// class CartProvider with ChangeNotifier {
-//   // Lista de items actualmente en el carrito
-//   final List<CartItem> _items = [];
-
-//   // Lista para almacenar el historial de pedidos
-//   final List<Order> _orderHistory = [];
-
-//   List<CartItem> get items => _items;
-//   List<Order> get orderHistory => _orderHistory;
-
-//   // Calcula la cantidad total de artículos únicos en el carrito
-//   int get itemCount {
-//     return _items.length;
-//   }
-
-//   // Calcula la cantidad total de unidades de productos en el carrito
-//   int get totalQuantity {
-//     return _items.fold(0, (sum, item) => sum + item.quantity);
-//   }
-
-//   // Calcula el monto total del carrito
-//   double get totalAmount {
-//     return _items.fold(
-//         0.0, (sum, item) => sum + (item.product.price * item.quantity));
-//   }
-
-//   // Añade un producto al carrito o incrementa la cantidad si ya existe.
-//   void addItem(Product product) {
-//     // Busca si el producto ya está en el carrito
-//     final existingItemIndex =
-//         _items.indexWhere((item) => item.product.id == product.id);
-
-//     if (existingItemIndex >= 0) {
-//       // Si existe, incrementa la cantidad
-//       _items[existingItemIndex] = CartItem(
-//         product: product,
-//         quantity: _items[existingItemIndex].quantity + 1,
-//       );
-//     } else {
-//       // Si no existe, crea un nuevo CartItem
-//       _items.add(CartItem(product: product, quantity: 1));
-//     }
-
-//     notifyListeners();
-//   }
-
-//   // Remueve un item completamente del carrito
-//   void removeItem(String productId) {
-//     _items.removeWhere((item) => item.product.id == productId);
-//     notifyListeners();
-//   }
-
-//   // Incrementa la cantidad de un item existente
-//   void incrementQuantity(CartItem item) {
-//     final existingItemIndex =
-//         _items.indexWhere((i) => i.product.id == item.product.id);
-//     if (existingItemIndex >= 0) {
-//       _items[existingItemIndex] = CartItem(
-//         product: item.product,
-//         quantity: item.quantity + 1,
-//       );
-//       notifyListeners();
-//     }
-//   }
-
-//   // Decrementa la cantidad de un item. Si llega a 0, lo elimina.
-//   void decrementQuantity(CartItem item) {
-//     final existingItemIndex =
-//         _items.indexWhere((i) => i.product.id == item.product.id);
-//     if (existingItemIndex >= 0) {
-//       if (item.quantity > 1) {
-//         // Decrementa la cantidad
-//         _items[existingItemIndex] = CartItem(
-//           product: item.product,
-//           quantity: item.quantity - 1,
-//         );
-//       } else {
-//         // Si la cantidad es 1, elimina el item
-//         _items.removeAt(existingItemIndex);
-//       }
-//       notifyListeners();
-//     }
-//   }
-
-//   // Simula la colocación de un pedido
-//   Future<bool> placeOrder() async {
-//     if (_items.isEmpty) {
-//       // No se puede realizar un pedido con un carrito vacío
-//       return false;
-//     }
-
-//     // 1. Crear el objeto Order
-//     final newOrder = Order(
-//       id: DateTime.now().toIso8601String(), // ID basado en timestamp
-//       date: DateTime.now(),
-//       items: List.of(_items), // Copia de los items del carrito
-//       total: totalAmount,
-//       status: 'Procesando', // Estado inicial
-//     );
-
-//     // 2. Agregar el pedido al historial
-//     _orderHistory.insert(0, newOrder); // Insertamos al inicio para que el más reciente esté primero
-
-//     // 3. Limpiar el carrito
-//     _items.clear();
-
-//     // 4. Notificar a los listeners del cambio en el historial y el carrito
-//     notifyListeners();
-
-//     // Simulación de éxito
-//     return true;
-//   }
-
-//   // Función para simular la carga de historial (si fuese una app real, aquí se usaría un FutureBuilder con Firebase)
-//   void loadOrderHistory() {
-//     // Si tuviéramos persistencia, aquí cargaríamos los datos.
-//     // Para esta simulación, asumimos que los datos ya están en _orderHistory.
-//     notifyListeners();
-//   }
-// }

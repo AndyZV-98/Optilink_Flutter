@@ -1,80 +1,87 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart'; // Asegúrate de tener esta importación
+
 import '../../models/product.dart';
 import '../../services/firestore_service.dart';
-import 'product_detail_screen.dart'; // Importamos la pantalla de detalle
+import '../../utils/formatters.dart';
+import '../../widgets/product_image.dart';
+import 'product_detail_screen.dart';
 
-// Pantalla principal que muestra el listado de productos
-class CatalogScreen extends StatelessWidget {
+/// Catálogo de productos del distribuidor, en tiempo real.
+class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Obtenemos el servicio de Firestore para acceder a los productos
-    final firestoreService = Provider.of<FirestoreService>(
-      context,
-      listen: false,
-    );
+  State<CatalogScreen> createState() => _CatalogScreenState();
+}
 
+class _CatalogScreenState extends State<CatalogScreen> {
+  late final Stream<List<Product>> _products;
+
+  @override
+  void initState() {
+    super.initState();
+    _products = context.read<FirestoreService>().getProducts();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<List<Product>>(
-      stream: firestoreService.getProducts(),
+      stream: _products,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
         if (snapshot.hasError) {
-          return Center(
-            child: Text('Error al cargar productos: ${snapshot.error}'),
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Text(
+                'No se pudo cargar el catálogo. Revisa tu conexión e '
+                'inténtalo de nuevo.',
+                textAlign: TextAlign.center,
+              ),
+            ),
           );
         }
 
-        final products = snapshot.data;
+        final products = snapshot.data ?? const <Product>[];
 
-        if (products == null || products.isEmpty) {
+        if (products.isEmpty) {
           return const Center(child: Text('No hay productos disponibles.'));
         }
 
-        // Si hay productos, los mostramos en un GridView
         return GridView.builder(
           padding: const EdgeInsets.all(12.0),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2, // 2 columnas
+            crossAxisCount: 2,
             crossAxisSpacing: 10.0,
             mainAxisSpacing: 10.0,
-            childAspectRatio:
-                0.7, // Relación de aspecto para que las tarjetas no sean demasiado cuadradas
+            childAspectRatio: 0.7,
           ),
           itemCount: products.length,
-          itemBuilder: (context, index) {
-            final product = products[index];
-            return ProductCard(product: product);
-          },
+          itemBuilder: (context, index) =>
+              ProductCard(product: products[index]),
         );
       },
     );
   }
 }
 
-// Widget para la tarjeta individual de un producto
+/// Tarjeta de un producto en el catálogo.
 class ProductCard extends StatelessWidget {
   final Product product;
+
   const ProductCard({required this.product, super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Definimos el formato de moneda (ej: $1.234)
-    final currencyFormatter = NumberFormat.currency(
-      locale: 'es_CL',
-      symbol: '\$',
-    );
-
     return Card(
       elevation: 4,
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: InkWell(
-        // Lógica de navegación: al tocar la tarjeta, vamos a la pantalla de detalle
         onTap: () {
           Navigator.push(
             context,
@@ -83,34 +90,10 @@ class ProductCard extends StatelessWidget {
             ),
           );
         },
-        borderRadius: BorderRadius.circular(15),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Imagen del Producto
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(15),
-                ),
-                child: Image.network(
-                  product.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: Colors.grey.shade300,
-                    child: const Center(
-                      child: Icon(
-                        Icons.image_not_supported,
-                        size: 40,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // Detalles del Producto
+            Expanded(child: ProductImage(url: product.imageUrl)),
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Column(
@@ -127,13 +110,22 @@ class ProductCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    currencyFormatter.format(product.price),
+                    formatCurrency(product.price),
                     style: TextStyle(
                       fontWeight: FontWeight.w900,
                       fontSize: 18,
                       color: Colors.green.shade700,
                     ),
                   ),
+                  if (product.isOutOfStock)
+                    Text(
+                      'Agotado',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.red.shade700,
+                      ),
+                    ),
                 ],
               ),
             ),
