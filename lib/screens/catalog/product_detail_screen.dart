@@ -117,15 +117,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               ),
             ],
             const Divider(height: 30),
-            const Text(
-              'Descripción:',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              product.description,
-              style: const TextStyle(fontSize: 16, height: 1.5),
-            ),
+            _buildAttributes(product),
+            if (product.description.isNotEmpty) ...[
+              const Text(
+                'Descripción:',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                product.description,
+                style: const TextStyle(fontSize: 16, height: 1.5),
+              ),
+            ],
           ],
         ),
       ),
@@ -175,6 +178,48 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // Código y características de la luna; se omiten las que estén vacías
+  Widget _buildAttributes(Product product) {
+    final attributes = <(String, String)>[
+      ('Código', product.sku),
+      ('Material', product.material),
+      ('Índice', product.indexLabel),
+      ('Tratamiento', product.treatment),
+    ].where((attribute) => attribute.$2.isNotEmpty).toList();
+
+    if (attributes.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        children: [
+          for (final (label, value) in attributes)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 110,
+                    child: Text(
+                      label,
+                      style: const TextStyle(color: Colors.black54),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      value,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

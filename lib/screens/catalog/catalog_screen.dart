@@ -7,7 +7,8 @@ import '../../utils/formatters.dart';
 import '../../widgets/product_image.dart';
 import 'product_detail_screen.dart';
 
-/// Catálogo de productos del distribuidor, en tiempo real.
+/// Catálogo de productos del distribuidor, en tiempo real, con buscador y
+/// filtro por tipo de luna.
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
 
@@ -17,11 +18,22 @@ class CatalogScreen extends StatefulWidget {
 
 class _CatalogScreenState extends State<CatalogScreen> {
   late final Stream<List<Product>> _products;
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  /// Tipo de luna elegido; `null` muestra todos.
+  String? _type;
 
   @override
   void initState() {
     super.initState();
     _products = context.read<FirestoreService>().getProducts();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -52,20 +64,91 @@ class _CatalogScreenState extends State<CatalogScreen> {
           return const Center(child: Text('No hay productos disponibles.'));
         }
 
-        return GridView.builder(
-          padding: const EdgeInsets.all(12.0),
-          // Dos columnas en un teléfono; más columnas en tablet o web.
-          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 240,
-            crossAxisSpacing: 10.0,
-            mainAxisSpacing: 10.0,
-            childAspectRatio: 0.7,
-          ),
-          itemCount: products.length,
-          itemBuilder: (context, index) =>
-              ProductCard(product: products[index]),
+        final types = products.map((p) => p.category).toSet().toList()..sort();
+        // Si el tipo elegido ya no existe en el catálogo, se ignora.
+        final type = types.contains(_type) ? _type : null;
+        final visible = products
+            .where((p) => type == null || p.category == type)
+            .where((p) => p.matches(_query))
+            .toList();
+
+        return Column(
+          children: [
+            _buildSearchBar(),
+            if (types.length > 1) _buildTypeFilter(types, type),
+            Expanded(
+              child: visible.isEmpty
+                  ? const Center(
+                      child: Text('Ningún producto coincide con la búsqueda.'),
+                    )
+                  : GridView.builder(
+                      padding: const EdgeInsets.all(12.0),
+                      // Dos columnas en un teléfono; más en tablet o web.
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 240,
+                            crossAxisSpacing: 10.0,
+                            mainAxisSpacing: 10.0,
+                            childAspectRatio: 0.7,
+                          ),
+                      itemCount: visible.length,
+                      itemBuilder: (context, index) =>
+                          ProductCard(product: visible[index]),
+                    ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (value) => setState(() => _query = value),
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Buscar por nombre o código',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _query.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.clear),
+                  tooltip: 'Borrar búsqueda',
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _query = '');
+                  },
+                ),
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeFilter(List<String> types, String? selected) {
+    return SizedBox(
+      height: 52,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          for (final type in <String?>[null, ...types])
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Center(
+                child: ChoiceChip(
+                  label: Text(type ?? 'Todos'),
+                  selected: selected == type,
+                  onSelected: (_) => setState(() => _type = type),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -100,6 +183,16 @@ class ProductCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (product.sku.isNotEmpty)
+                    Text(
+                      product.sku,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
+                    ),
                   Text(
                     product.name,
                     maxLines: 2,

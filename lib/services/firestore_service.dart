@@ -121,9 +121,15 @@ class FirestoreService {
   // --- Catálogo ---
 
   /// Productos del catálogo en tiempo real, ordenados por nombre.
-  Stream<List<Product>> getProducts() {
+  ///
+  /// Las ópticas solo ven los activos; el administrador pasa
+  /// [includeInactive] para verlos todos.
+  Stream<List<Product>> getProducts({bool includeInactive = false}) {
     return _db.collection('products').snapshots().map((snapshot) {
-      final products = snapshot.docs.map(Product.fromFirestore).toList();
+      final products = snapshot.docs
+          .map(Product.fromFirestore)
+          .where((product) => includeInactive || product.active)
+          .toList();
       products.sort(
         (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
       );
