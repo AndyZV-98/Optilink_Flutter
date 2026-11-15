@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../models/order.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/detail_row.dart';
 import '../../widgets/max_width.dart';
 import '../../widgets/order_status_chip.dart';
 import '../../widgets/product_image.dart';
@@ -15,15 +17,7 @@ class OrderDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Pedido #${order.shortId}',
-          style: const TextStyle(color: Colors.white),
-        ),
-        backgroundColor: Colors.blue.shade700,
-        iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: Text('Pedido #${order.shortId}')),
       body: OrderDetailBody(order: order),
     );
   }
@@ -48,22 +42,120 @@ class OrderDetailBody extends StatelessWidget {
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildSummaryCard(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            _buildItemsCard(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Tarjeta con óptica, fecha, número y estado
+  Widget _buildSummaryCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Información del pedido',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            if (showCustomer) ...[
+              DetailRow.text(
+                label: 'Óptica:',
+                icon: Icons.storefront_outlined,
+                value: order.customerName,
+              ),
+              if (order.userEmail.isNotEmpty &&
+                  order.userEmail != order.customerName)
+                DetailRow(
+                  label: 'Correo:',
+                  icon: Icons.mail_outline,
+                  // Un correo largo se reduce un poco en vez de partirse.
+                  value: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      order.userEmail,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+            ],
+            DetailRow.text(
+              label: 'Fecha:',
+              icon: Icons.calendar_today_outlined,
+              value: formatOrderDate(order.orderDate),
+            ),
+            DetailRow.text(
+              label: 'Número:',
+              icon: Icons.tag,
+              value: order.shortId,
+            ),
+            DetailRow.text(
+              label: 'Unidades:',
+              icon: Icons.inventory_2_outlined,
+              value: '${order.totalUnits}',
+            ),
+            DetailRow(
+              label: 'Estado:',
+              icon: Icons.flag_outlined,
+              value: OrderStatusChip(status: order.status),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Tarjeta con los productos del pedido y el total
+  Widget _buildItemsCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
               'Productos solicitados (${order.items.length})',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue.shade900,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
-            const Divider(height: 15, thickness: 2),
-            ...order.items.map(_buildItemRow),
-            const Divider(height: 15, thickness: 2),
-            _buildTotalFooter(),
+            const SizedBox(height: 8),
+            for (final item in order.items) ...[
+              _buildItemRow(item),
+              const Divider(),
+            ],
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'TOTAL:',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.6,
+                      color: AppColors.muted,
+                    ),
+                  ),
+                ),
+                Text(
+                  formatCurrency(order.totalAmount),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.6,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -73,17 +165,17 @@ class OrderDetailBody extends StatelessWidget {
   // Fila de un producto del pedido
   Widget _buildItemRow(OrderedItem item) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 12.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(10),
             child: ProductImage(
               url: item.imageUrl,
-              width: 50,
-              height: 50,
-              iconSize: 28,
+              width: 48,
+              height: 48,
+              iconSize: 22,
             ),
           ),
           const SizedBox(width: 12),
@@ -95,16 +187,16 @@ class OrderDetailBody extends StatelessWidget {
                   item.name,
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: 16,
+                    fontSize: 15,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   '${formatCurrency(item.price)} x ${item.quantity} '
                   '${item.quantity == 1 ? 'unidad' : 'unidades'}',
-                  style: const TextStyle(color: Colors.black54),
+                  style: const TextStyle(fontSize: 13, color: AppColors.muted),
                 ),
               ],
             ),
@@ -112,136 +204,7 @@ class OrderDetailBody extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             formatCurrency(item.subtotal),
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: Colors.green.shade700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Tarjeta con fecha, número y estado
-  Widget _buildSummaryCard() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Información del pedido',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const Divider(height: 10),
-            if (showCustomer) ...[
-              _buildDetailRow(
-                'Óptica:',
-                Icons.storefront,
-                Text(
-                  order.customerName,
-                  textAlign: TextAlign.right,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              if (order.userEmail.isNotEmpty &&
-                  order.userEmail != order.customerName)
-                _buildDetailRow(
-                  'Correo:',
-                  Icons.email_outlined,
-                  // Un correo largo se reduce un poco en vez de partirse.
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      order.userEmail,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-            ],
-            _buildDetailRow(
-              'Fecha:',
-              Icons.calendar_today,
-              Text(
-                formatOrderDate(order.orderDate),
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            _buildDetailRow(
-              'Número:',
-              Icons.confirmation_number,
-              Text(
-                order.shortId,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            _buildDetailRow(
-              'Unidades:',
-              Icons.inventory_2_outlined,
-              Text(
-                '${order.totalUnits}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            _buildDetailRow(
-              'Estado:',
-              Icons.pending_actions,
-              OrderStatusChip(status: order.status),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, IconData icon, Widget value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: Colors.grey),
-          const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Align(alignment: Alignment.centerRight, child: value),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTotalFooter() {
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.shade100),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'TOTAL:',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: Colors.black87,
-            ),
-          ),
-          Text(
-            formatCurrency(order.totalAmount),
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              color: Colors.green.shade800,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
           ),
         ],
       ),

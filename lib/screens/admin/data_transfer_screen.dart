@@ -5,6 +5,8 @@ import '../../models/product.dart';
 import '../../services/catalog_excel.dart';
 import '../../services/file_transfer.dart';
 import '../../services/firestore_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/form_message.dart';
 
 /// Carga y descarga del catálogo en Excel.
 ///
@@ -35,7 +37,7 @@ class _DataTransferScreenState extends State<DataTransferScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(text),
-        backgroundColor: error ? Colors.red : Colors.green,
+        backgroundColor: error ? AppColors.danger : AppColors.success,
       ),
     );
   }
@@ -160,7 +162,11 @@ class _DataTransferScreenState extends State<DataTransferScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (_isBusy) const LinearProgressIndicator(),
+                if (_isBusy)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: LinearProgressIndicator(),
+                  ),
                 _buildDownloadCard(),
                 const SizedBox(height: 16),
                 _buildUploadCard(),
@@ -298,14 +304,12 @@ class _DataTransferScreenState extends State<DataTransferScreen> {
         Text('• ${_count(_toCreate, 'se creará', 'se crearán')}.'),
         Text('• ${_count(_toUpdate, 'se actualizará', 'se actualizarán')}.'),
         const SizedBox(height: 16),
-        ElevatedButton.icon(
-          onPressed: _isBusy ? null : _confirmImport,
-          icon: const Icon(Icons.check),
-          label: const Text('Confirmar carga'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green.shade600,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(double.infinity, 48),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: _isBusy ? null : _confirmImport,
+            icon: const Icon(Icons.check),
+            label: const Text('Confirmar carga'),
           ),
         ),
       ],
@@ -328,24 +332,35 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: Colors.blue.shade700),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(AppRadius.control),
+            ),
+            child: Icon(icon, color: AppColors.primary, size: 22),
           ),
-          const SizedBox(height: 6),
-          Text(subtitle, style: const TextStyle(color: Colors.black54)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(subtitle, style: const TextStyle(color: AppColors.muted)),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -361,30 +376,6 @@ class _Notice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isError ? Colors.red : Colors.green;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.shade200),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            isError ? Icons.error_outline : Icons.check_circle_outline,
-            color: color.shade700,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(text, style: TextStyle(color: color.shade900)),
-          ),
-        ],
-      ),
-    );
+    return FormMessage(text: text, isError: isError);
   }
 }

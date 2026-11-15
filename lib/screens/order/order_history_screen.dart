@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../models/order.dart';
 import '../../services/firestore_service.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/max_width.dart';
 import '../../widgets/order_status_chip.dart';
 import 'order_detail_screen.dart';
 
@@ -34,44 +37,30 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
         }
 
         if (snapshot.hasError) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Text(
-                'No se pudieron cargar tus pedidos. Revisa tu conexión e '
-                'inténtalo de nuevo.',
-                textAlign: TextAlign.center,
-              ),
-            ),
+          return const EmptyState(
+            icon: Icons.cloud_off_outlined,
+            title: 'No se pudieron cargar tus pedidos.',
+            subtitle: 'Revisa tu conexión e inténtalo de nuevo.',
           );
         }
 
         final orders = snapshot.data ?? const <Order>[];
 
         if (orders.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.history_toggle_off,
-                  size: 80,
-                  color: Colors.grey.shade300,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Aún no tienes pedidos registrados.',
-                  style: TextStyle(fontSize: 18, color: Colors.grey),
-                ),
-              ],
-            ),
+          return const EmptyState(
+            icon: Icons.receipt_long_outlined,
+            title: 'Aún no tienes pedidos registrados.',
+            subtitle: 'Cuando confirmes un pedido aparecerá aquí.',
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(8.0),
-          itemCount: orders.length,
-          itemBuilder: (context, index) => OrderCard(order: orders[index]),
+        return MaxWidth(
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16.0),
+            itemCount: orders.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) => OrderCard(order: orders[index]),
+          ),
         );
       },
     );
@@ -87,9 +76,6 @@ class OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 3,
-      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -99,7 +85,6 @@ class OrderCard extends StatelessWidget {
             ),
           );
         },
-        borderRadius: BorderRadius.circular(10),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -107,7 +92,6 @@ class OrderCard extends StatelessWidget {
             children: [
               // Número de pedido y estado
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
                     child: Text(
@@ -115,7 +99,7 @@ class OrderCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                         fontSize: 16,
                       ),
                     ),
@@ -124,12 +108,15 @@ class OrderCard extends StatelessWidget {
                   OrderStatusChip(status: order.status),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 formatOrderDate(order.orderDate),
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: const TextStyle(fontSize: 13, color: AppColors.muted),
               ),
-              const Divider(height: 16),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Divider(),
+              ),
 
               // Resumen de los primeros 3 ítems
               ...order.items
@@ -150,32 +137,29 @@ class OrderCard extends StatelessWidget {
                 Text(
                   '+ ${order.items.length - 3} productos más',
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontStyle: FontStyle.italic,
-                    color: Colors.blue,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.primary,
                   ),
                 ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
               // Total del pedido
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Total:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: Colors.blue.shade900,
+                  const Expanded(
+                    child: Text(
+                      'Total:',
+                      style: TextStyle(color: AppColors.muted),
                     ),
                   ),
                   Text(
                     formatCurrency(order.totalAmount),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 20,
-                      color: Colors.green.shade700,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                      letterSpacing: -0.3,
                     ),
                   ),
                 ],

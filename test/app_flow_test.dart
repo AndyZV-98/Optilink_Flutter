@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:optilink_app/utils/formatters.dart';
+import 'package:optilink_app/widgets/quantity_stepper.dart';
 
 import 'support/test_app.dart';
 
@@ -67,9 +68,9 @@ void main() {
     await tester.tap(find.text('Luna CR-39 Antirreflejo'));
     await tester.pumpAndSettle();
     expect(find.text('Disponibles: 10'), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.add_circle_outline));
+    await tester.tap(find.byIcon(Icons.add));
     await tester.pump();
-    await tester.tap(find.byIcon(Icons.add_circle_outline));
+    await tester.tap(find.byIcon(Icons.add));
     await tester.pump();
     await tester.tap(find.text('Añadir al Carrito'));
     await tester.pump();
@@ -83,10 +84,11 @@ void main() {
     // Carrito: revisar el total y confirmar.
     await tester.pageBack();
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.shopping_cart));
+    await tester.tap(find.byIcon(Icons.shopping_cart_outlined));
     await tester.pumpAndSettle();
     expect(find.text('Total (3 unidades):'), findsOneWidget);
-    expect(find.text(r'$37,50'), findsOneWidget);
+    // El subtotal del producto y el total del pedido.
+    expect(find.text(r'$37,50'), findsNWidgets(2));
     await tester.tap(find.text('Confirmar Pedido'));
     await tester.pumpAndSettle();
     expect(
@@ -143,11 +145,11 @@ void main() {
     await tester.tap(find.text('Luna Policarbonato Blue'));
     await tester.pumpAndSettle();
 
-    final button = tester.widget<ElevatedButton>(
-      find.widgetWithText(ElevatedButton, 'Sin unidades disponibles'),
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Sin unidades disponibles'),
     );
     expect(button.onPressed, isNull);
-    expect(find.byIcon(Icons.add_circle_outline), findsNothing);
+    expect(find.byType(QuantityStepper), findsNothing);
   });
 
   testWidgets('el carrito no deja pasar del stock disponible', (tester) async {
@@ -156,15 +158,13 @@ void main() {
 
     await tester.tap(find.text('Luna CR-39 Antirreflejo'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.add_circle_outline));
+    await tester.tap(find.byIcon(Icons.add));
     await tester.pump();
 
     // Con 2 unidades elegidas de 2 disponibles, ya no se puede sumar más.
     expect(
       tester
-          .widget<IconButton>(
-            find.widgetWithIcon(IconButton, Icons.add_circle_outline),
-          )
+          .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.add))
           .onPressed,
       isNull,
     );

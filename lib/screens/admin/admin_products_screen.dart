@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../../models/product.dart';
 import '../../services/firestore_service.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/max_width.dart';
 import 'data_transfer_screen.dart';
 import 'product_form_screen.dart';
@@ -54,15 +56,10 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
         }
 
         if (snapshot.hasError) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Text(
-                'No se pudo cargar el catálogo. Revisa tu conexión e '
-                'inténtalo de nuevo.',
-                textAlign: TextAlign.center,
-              ),
-            ),
+          return const EmptyState(
+            icon: Icons.cloud_off_outlined,
+            title: 'No se pudo cargar el catálogo.',
+            subtitle: 'Revisa tu conexión e inténtalo de nuevo.',
           );
         }
 
@@ -75,23 +72,34 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
               _buildToolbar(products.length),
               Expanded(
                 child: visible.isEmpty
-                    ? Center(
-                        child: Text(
-                          products.isEmpty
-                              ? 'Aún no hay productos. Crea uno o cárgalos '
-                                    'desde un Excel.'
-                              : 'Ningún producto coincide con la búsqueda.',
-                          style: const TextStyle(color: Colors.grey),
-                          textAlign: TextAlign.center,
-                        ),
+                    ? EmptyState(
+                        icon: products.isEmpty
+                            ? Icons.inventory_2_outlined
+                            : Icons.search_off,
+                        title: products.isEmpty
+                            ? 'Aún no hay productos.'
+                            : 'Ningún producto coincide con la búsqueda.',
+                        subtitle: products.isEmpty
+                            ? 'Crea uno o cárgalos desde un Excel.'
+                            : null,
                       )
-                    : ListView.separated(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        itemCount: visible.length,
-                        separatorBuilder: (context, index) =>
-                            const Divider(height: 1),
-                        itemBuilder: (context, index) =>
-                            _buildTile(visible[index]),
+                    // Lista dentro de una tarjeta que ocupa solo el alto de
+                    // sus filas; las filas se construyen al desplazarse.
+                    : Align(
+                        alignment: Alignment.topCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                          child: Card(
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: visible.length,
+                              separatorBuilder: (context, index) =>
+                                  const Divider(),
+                              itemBuilder: (context, index) =>
+                                  _buildTile(visible[index]),
+                            ),
+                          ),
+                        ),
                       ),
               ),
             ],
@@ -104,7 +112,7 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
   // Buscador y botones de acción
   Widget _buildToolbar(int total) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -114,13 +122,9 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
             decoration: InputDecoration(
               hintText: 'Buscar por nombre o código ($total productos)',
               prefixIcon: const Icon(Icons.search),
-              isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -159,19 +163,22 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
 
     return ListTile(
       onTap: () => _openForm(product),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       title: Text(
         product.name,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontWeight: FontWeight.w600,
-          color: product.active ? null : Colors.grey,
+          fontSize: 15,
+          color: product.active ? AppColors.ink : AppColors.muted,
         ),
       ),
       subtitle: Text(
         product.active ? details : '$details · Inactivo',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 13, color: AppColors.muted),
       ),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -179,13 +186,15 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
         children: [
           Text(
             formatCurrency(product.price),
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
           ),
+          const SizedBox(height: 2),
           Text(
             product.stock == null ? 'Sin control' : 'Stock: ${product.stock}',
             style: TextStyle(
               fontSize: 12,
-              color: product.isOutOfStock ? Colors.red.shade700 : Colors.grey,
+              fontWeight: FontWeight.w500,
+              color: product.isOutOfStock ? AppColors.danger : AppColors.muted,
             ),
           ),
         ],

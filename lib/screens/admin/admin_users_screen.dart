@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../../models/app_user.dart';
 import '../../services/firestore_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/pill.dart';
 import '../../widgets/max_width.dart';
 
 /// Cuentas de ópticas: las solicitudes pendientes van primero, con botones
@@ -40,7 +43,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       messenger.showSnackBar(
         const SnackBar(
           content: Text('No se pudo actualizar la cuenta. Inténtalo de nuevo.'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.danger,
         ),
       );
     }
@@ -56,15 +59,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         }
 
         if (snapshot.hasError) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Text(
-                'No se pudieron cargar las cuentas. Revisa tu conexión e '
-                'inténtalo de nuevo.',
-                textAlign: TextAlign.center,
-              ),
-            ),
+          return const EmptyState(
+            icon: Icons.cloud_off_outlined,
+            title: 'No se pudieron cargar las cuentas.',
+            subtitle: 'Revisa tu conexión e inténtalo de nuevo.',
           );
         }
 
@@ -73,18 +71,18 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             .toList();
 
         if (users.isEmpty) {
-          return const Center(
-            child: Text(
-              'Aún no hay ópticas registradas.',
-              style: TextStyle(color: Colors.grey),
-            ),
+          return const EmptyState(
+            icon: Icons.storefront_outlined,
+            title: 'Aún no hay ópticas registradas.',
+            subtitle: 'Las solicitudes de acceso aparecerán aquí.',
           );
         }
 
         return MaxWidth(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(8.0),
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16.0),
             itemCount: users.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
             itemBuilder: (context, index) => _buildCard(users[index]),
           ),
         );
@@ -93,16 +91,35 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   Widget _buildCard(AppUser user) {
-    final (label, color) = switch (user.status) {
-      userStatusApproved => ('Aprobada', Colors.green.shade700),
-      userStatusRejected => ('Rechazada', Colors.red.shade700),
-      _ => ('Pendiente', Colors.orange.shade800),
+    final (label, color, background) = switch (user.status) {
+      userStatusApproved => (
+        'Aprobada',
+        AppColors.success,
+        AppColors.successSoft,
+      ),
+      userStatusRejected => (
+        'Rechazada',
+        AppColors.danger,
+        AppColors.dangerSoft,
+      ),
+      _ => ('Pendiente', AppColors.warning, AppColors.warningSoft),
     };
+    final details = <(IconData, String)>[
+      (Icons.badge_outlined, user.ruc.isEmpty ? '' : 'RUC ${user.ruc}'),
+      (
+        Icons.person_outline,
+        [
+          user.contactName,
+          user.phone,
+        ].where((text) => text.isNotEmpty).join(' · '),
+      ),
+      (Icons.mail_outline, user.email),
+      (Icons.place_outlined, user.address),
+    ].where((detail) => detail.$2.isNotEmpty).toList();
 
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
       child: Padding(
-        padding: const EdgeInsets.all(14.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -112,57 +129,63 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   child: Text(
                     user.displayName,
                     style: const TextStyle(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
                       fontSize: 16,
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
+                Pill(
+                  text: label,
+                  color: color,
+                  background: background,
+                  dot: true,
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            for (final line in [
-              if (user.ruc.isNotEmpty) 'RUC ${user.ruc}',
-              if (user.contactName.isNotEmpty || user.phone.isNotEmpty)
-                [
-                  user.contactName,
-                  user.phone,
-                ].where((text) => text.isNotEmpty).join(' · '),
-              user.email,
-              user.address,
-            ].where((line) => line.isNotEmpty))
+            const SizedBox(height: 10),
+            for (final (icon, text) in details)
               Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  line,
-                  style: const TextStyle(color: Colors.black54, fontSize: 13),
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(icon, size: 16, color: AppColors.muted),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        text,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: [
                 if (!user.isApproved)
                   FilledButton.icon(
                     onPressed: () => _setStatus(user, userStatusApproved),
-                    icon: const Icon(Icons.check),
+                    icon: const Icon(Icons.check, size: 18),
                     label: const Text('Aprobar'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 42),
+                    ),
                   ),
                 if (!user.isRejected)
                   OutlinedButton.icon(
                     onPressed: () => _setStatus(user, userStatusRejected),
-                    icon: const Icon(Icons.block),
+                    icon: const Icon(Icons.block, size: 18),
                     label: Text(user.isApproved ? 'Quitar acceso' : 'Rechazar'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
+                      foregroundColor: AppColors.danger,
+                      minimumSize: const Size(0, 42),
                     ),
                   ),
               ],

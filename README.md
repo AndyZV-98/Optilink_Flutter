@@ -124,6 +124,10 @@ flutter run -d chrome  # Web
 Las pruebas usan un Firestore y un Auth simulados en memoria, así que no
 necesitan conexión ni credenciales.
 
+Diseño: los colores, la tipografía (Inter, incluida en `assets/fonts`) y el
+estilo de botones, tarjetas y campos se definen en un solo lugar,
+`lib/theme/app_theme.dart`. Los componentes compartidos están en `lib/widgets`.
+
 Notas:
 
 - Las versiones de `cloud_firestore` y `firebase_auth` están fijadas en

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Imagen de un producto, con un ícono de reemplazo si no hay URL o no carga.
+import '../theme/app_theme.dart';
+
+/// Imagen de un producto. Si no hay URL o no carga, muestra un fondo con el
+/// tinte de la marca y el ícono de una luna.
 class ProductImage extends StatelessWidget {
   final String url;
   final double? width;
@@ -32,9 +35,19 @@ class ProductImage extends StatelessWidget {
     return Container(
       width: width,
       height: height,
-      color: Colors.grey.shade200,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.primarySoft, Color(0xFFDDF4F3)],
+        ),
+      ),
       alignment: Alignment.center,
-      child: Icon(Icons.lens_outlined, size: iconSize, color: Colors.grey),
+      child: Icon(
+        Icons.lens_outlined,
+        size: iconSize,
+        color: AppColors.primary.withValues(alpha: 0.45),
+      ),
     );
   }
 }

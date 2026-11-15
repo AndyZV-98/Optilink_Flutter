@@ -115,7 +115,8 @@ void main() {
 
         // Un pedido entregado ya no tiene acciones, y el stock no se tocó más.
         expect(find.text('Cancelar pedido'), findsNothing);
-        expect(find.byType(ElevatedButton), findsNothing);
+        expect(find.byType(FilledButton), findsNothing);
+        expect(find.byType(OutlinedButton), findsNothing);
         expect(await stockOf('p1'), 7);
       },
     );

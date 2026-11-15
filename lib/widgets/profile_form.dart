@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
+import 'form_message.dart';
 
 /// Formulario con los datos de una óptica.
 ///
@@ -129,7 +130,6 @@ class _ProfileFormState extends State<ProfileForm> {
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: icon == null ? null : Icon(icon),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
     );
@@ -195,37 +195,19 @@ class _ProfileFormState extends State<ProfileForm> {
               autofillHints: const [AutofillHints.newPassword],
             ),
           ],
-          if (widget.errorMessage != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Text(
-                widget.errorMessage!,
-                style: const TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ElevatedButton(
+          if (widget.errorMessage != null) ...[
+            FormMessage(text: widget.errorMessage!),
+            const SizedBox(height: 16),
+          ],
+          FilledButton(
             onPressed: widget.isSubmitting ? null : _submit,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue.shade700,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
             child: widget.isSubmitting
                 ? const SizedBox(
-                    height: 24,
-                    width: 24,
+                    height: 22,
+                    width: 22,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Text(
-                    widget.submitLabel,
-                    style: const TextStyle(fontSize: 18, color: Colors.white),
-                  ),
+                : Text(widget.submitLabel),
           ),
         ],
       ),

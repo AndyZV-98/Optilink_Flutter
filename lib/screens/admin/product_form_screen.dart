@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../../models/product.dart';
 import '../../services/firestore_service.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/form_message.dart';
 
 /// Formulario para crear un producto o editar uno existente.
 class ProductFormScreen extends StatefulWidget {
@@ -134,7 +136,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       messenger.showSnackBar(
         SnackBar(
           content: Text('"${product.name}" guardado.'),
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.success,
         ),
       );
       navigator.pop();
@@ -169,10 +171,32 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         validator: validator,
         keyboardType: keyboardType,
         maxLines: maxLines,
-        decoration: InputDecoration(
-          labelText: label,
-          helperText: helperText,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        decoration: InputDecoration(labelText: label, helperText: helperText),
+      ),
+    );
+  }
+
+  /// Grupo de campos con título, dentro de una tarjeta.
+  Widget _section(String title, List<Widget> children) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 18),
+              ...children,
+            ],
+          ),
         ),
       ),
     );
@@ -188,9 +212,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           widget.product == null ? 'Nuevo producto' : 'Editar producto',
         ),
       ),
-      body: Center(
+      body: Align(
+        alignment: Alignment.topCenter,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.all(16.0),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560),
             child: Form(
@@ -198,84 +223,80 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _field(
-                    'Código',
-                    _sku,
-                    validator: _required,
-                    helperText: 'Único por producto. Es la clave en el Excel.',
-                  ),
-                  _field('Nombre', _name, validator: _required),
-                  _field(
-                    'Tipo',
-                    _type,
-                    validator: _required,
-                    helperText: 'Monofocal, Bifocal, Progresivo…',
-                  ),
-                  _field('Material', _material),
-                  _field(
-                    'Índice',
-                    _index,
-                    validator: _validateIndex,
-                    keyboardType: decimal,
-                  ),
-                  _field('Tratamiento', _treatment),
-                  _field('Descripción', _description, maxLines: 3),
-                  _field(
-                    'Precio (USD)',
-                    _price,
-                    validator: _validatePrice,
-                    keyboardType: decimal,
-                  ),
-                  _field(
-                    'Stock',
-                    _stock,
-                    validator: _validateStock,
-                    keyboardType: TextInputType.number,
-                    helperText: 'Vacío: sin control de stock.',
-                  ),
-                  _field(
-                    'Imagen (URL)',
-                    _imageUrl,
-                    keyboardType: TextInputType.url,
-                  ),
-                  SwitchListTile(
-                    value: _active,
-                    onChanged: (value) => setState(() => _active = value),
-                    title: const Text('Activo'),
-                    subtitle: const Text(
-                      'Los productos inactivos no aparecen en el catálogo de '
-                      'las ópticas.',
+                  _section('Identificación', [
+                    _field(
+                      'Código',
+                      _sku,
+                      validator: _required,
+                      helperText:
+                          'Único por producto. Es la clave en el Excel.',
                     ),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  const SizedBox(height: 12),
-                  if (_errorMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(
-                        _errorMessage!,
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
+                    _field('Nombre', _name, validator: _required),
+                    _field(
+                      'Tipo',
+                      _type,
+                      validator: _required,
+                      helperText: 'Monofocal, Bifocal, Progresivo…',
+                    ),
+                  ]),
+                  _section('Características', [
+                    _field('Material', _material),
+                    _field(
+                      'Índice',
+                      _index,
+                      validator: _validateIndex,
+                      keyboardType: decimal,
+                    ),
+                    _field('Tratamiento', _treatment),
+                    _field('Descripción', _description, maxLines: 3),
+                    _field(
+                      'Imagen (URL)',
+                      _imageUrl,
+                      keyboardType: TextInputType.url,
+                    ),
+                  ]),
+                  _section('Venta', [
+                    _field(
+                      'Precio (USD)',
+                      _price,
+                      validator: _validatePrice,
+                      keyboardType: decimal,
+                    ),
+                    _field(
+                      'Stock',
+                      _stock,
+                      validator: _validateStock,
+                      keyboardType: TextInputType.number,
+                      helperText: 'Vacío: sin control de stock.',
+                    ),
+                    SwitchListTile(
+                      value: _active,
+                      onChanged: (value) => setState(() => _active = value),
+                      title: const Text('Activo'),
+                      subtitle: const Text(
+                        'Los productos inactivos no aparecen en el catálogo '
+                        'de las ópticas.',
+                        style: TextStyle(color: AppColors.muted),
                       ),
+                      contentPadding: EdgeInsets.zero,
                     ),
-                  ElevatedButton(
+                    const SizedBox(height: 8),
+                  ]),
+                  if (_errorMessage != null) ...[
+                    FormMessage(text: _errorMessage!),
+                    const SizedBox(height: 16),
+                  ],
+                  FilledButton(
                     onPressed: _isSaving ? null : _save,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade700,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
                     child: _isSaving
                         ? const SizedBox(
                             height: 22,
                             width: 22,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Guardar', style: TextStyle(fontSize: 17)),
+                        : const Text('Guardar'),
                   ),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),

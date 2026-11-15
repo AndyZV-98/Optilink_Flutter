@@ -16,7 +16,9 @@ import 'screens/order/cart_screen.dart';
 import 'screens/order/order_history_screen.dart';
 import 'services/file_transfer.dart';
 import 'services/firestore_service.dart';
+import 'theme/app_theme.dart';
 import 'utils/formatters.dart';
+import 'widgets/app_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,15 +52,7 @@ class OptiLinkApp extends StatelessWidget {
     return MaterialApp(
       title: 'OptiLink B2B',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        // Azul de la marca para botones, chips y selección.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue.shade700),
-        appBarTheme: AppBarTheme(
-          backgroundColor: Colors.blue.shade700,
-          foregroundColor: Colors.white,
-        ),
-        useMaterial3: true,
-      ),
+      theme: buildAppTheme(),
       home: const AuthGate(),
     );
   }
@@ -184,141 +178,54 @@ class _LoadingScreen extends StatelessWidget {
   }
 }
 
-/// Navegación principal tras iniciar sesión: Catálogo, Pedidos y Cuenta.
-class MainScreenNavigator extends StatefulWidget {
+/// Navegación de la óptica tras iniciar sesión: Catálogo, Pedidos y Cuenta.
+class MainScreenNavigator extends StatelessWidget {
   const MainScreenNavigator({super.key});
 
-  @override
-  State<MainScreenNavigator> createState() => _MainScreenNavigatorState();
-}
-
-class _MainScreenNavigatorState extends State<MainScreenNavigator> {
-  static const List<String> _titles = ['Catálogo', 'Pedidos', 'Cuenta'];
-  static const List<Widget> _screens = [
-    CatalogScreen(),
-    OrderHistoryScreen(),
-    AccountScreen(),
+  static const List<ShellDestination> _destinations = [
+    ShellDestination(
+      label: 'Catálogo',
+      icon: Icons.grid_view_outlined,
+      selectedIcon: Icons.grid_view_rounded,
+      screen: CatalogScreen(),
+    ),
+    ShellDestination(
+      label: 'Pedidos',
+      icon: Icons.receipt_long_outlined,
+      selectedIcon: Icons.receipt_long,
+      screen: OrderHistoryScreen(),
+    ),
+    ShellDestination(
+      label: 'Cuenta',
+      icon: Icons.person_outline,
+      selectedIcon: Icons.person,
+      screen: AccountScreen(),
+    ),
   ];
-
-  int _selectedIndex = 0;
-
-  void _onItemTapped(int index) {
-    setState(() => _selectedIndex = index);
-  }
-
-  void _selectFromDrawer(int index) {
-    Navigator.pop(context);
-    _onItemTapped(index);
-  }
-
-  Widget _buildDrawer(BuildContext context) {
-    final userName = context.read<AppUser>().displayName;
-
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: <Widget>[
-          DrawerHeader(
-            decoration: BoxDecoration(color: Colors.blue.shade700),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                const Text(
-                  'OptiLink B2B',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  userName,
-                  style: TextStyle(color: Colors.blue.shade200, fontSize: 14),
-                ),
-              ],
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.shopping_bag),
-            title: const Text('Catálogo de Productos'),
-            selected: _selectedIndex == 0,
-            onTap: () => _selectFromDrawer(0),
-          ),
-          ListTile(
-            leading: const Icon(Icons.local_shipping),
-            title: const Text('Mis Pedidos'),
-            selected: _selectedIndex == 1,
-            onTap: () => _selectFromDrawer(1),
-          ),
-          ListTile(
-            leading: const Icon(Icons.person),
-            title: const Text('Mi Cuenta'),
-            selected: _selectedIndex == 2,
-            onTap: () => _selectFromDrawer(2),
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('Cerrar Sesión'),
-            onTap: () {
-              Navigator.pop(context);
-              signOutAndClearCart(context);
-            },
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     final cartItemCount = context.watch<CartProvider>().itemCount;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _titles[_selectedIndex],
-          style: const TextStyle(color: Colors.white),
+    return AppShell(
+      destinations: _destinations,
+      actions: [
+        Badge(
+          label: Text('$cartItemCount'),
+          isLabelVisible: cartItemCount > 0,
+          offset: const Offset(-4, 4),
+          child: IconButton(
+            icon: const Icon(Icons.shopping_cart_outlined),
+            tooltip: 'Carrito',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const CartScreen()),
+              );
+            },
+          ),
         ),
-        actions: [
-          Badge(
-            label: Text('$cartItemCount'),
-            isLabelVisible: cartItemCount > 0,
-            offset: const Offset(-4, 4),
-            child: IconButton(
-              icon: const Icon(Icons.shopping_cart),
-              tooltip: 'Carrito',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const CartScreen()),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      drawer: _buildDrawer(context),
-      // IndexedStack conserva el estado de cada pestaña al cambiar entre ellas.
-      body: IndexedStack(index: _selectedIndex, children: _screens),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_bag),
-            label: 'Catálogo',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.local_shipping),
-            label: 'Pedidos',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Cuenta'),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.blue.shade700,
-        onTap: _onItemTapped,
-      ),
+      ],
     );
   }
 }

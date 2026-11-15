@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../models/product.dart';
 import '../../services/firestore_service.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/pill.dart';
 import '../../widgets/product_image.dart';
 import 'product_detail_screen.dart';
 
@@ -46,22 +49,20 @@ class _CatalogScreenState extends State<CatalogScreen> {
         }
 
         if (snapshot.hasError) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Text(
-                'No se pudo cargar el catálogo. Revisa tu conexión e '
-                'inténtalo de nuevo.',
-                textAlign: TextAlign.center,
-              ),
-            ),
+          return const EmptyState(
+            icon: Icons.cloud_off_outlined,
+            title: 'No se pudo cargar el catálogo.',
+            subtitle: 'Revisa tu conexión e inténtalo de nuevo.',
           );
         }
 
         final products = snapshot.data ?? const <Product>[];
 
         if (products.isEmpty) {
-          return const Center(child: Text('No hay productos disponibles.'));
+          return const EmptyState(
+            icon: Icons.grid_view_outlined,
+            title: 'No hay productos disponibles.',
+          );
         }
 
         final types = products.map((p) => p.category).toSet().toList()..sort();
@@ -78,18 +79,19 @@ class _CatalogScreenState extends State<CatalogScreen> {
             if (types.length > 1) _buildTypeFilter(types, type),
             Expanded(
               child: visible.isEmpty
-                  ? const Center(
-                      child: Text('Ningún producto coincide con la búsqueda.'),
+                  ? const EmptyState(
+                      icon: Icons.search_off,
+                      title: 'Ningún producto coincide con la búsqueda.',
                     )
                   : GridView.builder(
-                      padding: const EdgeInsets.all(12.0),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       // Dos columnas en un teléfono; más en tablet o web.
                       gridDelegate:
                           const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 240,
-                            crossAxisSpacing: 10.0,
-                            mainAxisSpacing: 10.0,
-                            childAspectRatio: 0.7,
+                            maxCrossAxisExtent: 230,
+                            crossAxisSpacing: 12.0,
+                            mainAxisSpacing: 12.0,
+                            childAspectRatio: 0.76,
                           ),
                       itemCount: visible.length,
                       itemBuilder: (context, index) =>
@@ -104,7 +106,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: TextField(
         controller: _searchController,
         onChanged: (value) => setState(() => _query = value),
@@ -115,15 +117,13 @@ class _CatalogScreenState extends State<CatalogScreen> {
           suffixIcon: _query.isEmpty
               ? null
               : IconButton(
-                  icon: const Icon(Icons.clear),
+                  icon: const Icon(Icons.close),
                   tooltip: 'Borrar búsqueda',
                   onPressed: () {
                     _searchController.clear();
                     setState(() => _query = '');
                   },
                 ),
-          isDense: true,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
     );
@@ -131,10 +131,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
   Widget _buildTypeFilter(List<String> types, String? selected) {
     return SizedBox(
-      height: 52,
+      height: 48,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           for (final type in <String?>[null, ...types])
             Padding(
@@ -162,9 +162,6 @@ class ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 4,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -177,49 +174,68 @@ class ProductCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(child: ProductImage(url: product.imageUrl)),
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ProductImage(url: product.imageUrl),
+                  if (product.isOutOfStock)
+                    const Positioned(
+                      top: 10,
+                      left: 10,
+                      child: Pill(
+                        text: 'Agotado',
+                        color: AppColors.danger,
+                        background: AppColors.dangerSoft,
+                      ),
+                    ),
+                ],
+              ),
+            ),
             Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (product.sku.isNotEmpty)
-                    Text(
-                      product.sku,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
-                    ),
                   Text(
-                    product.name,
-                    maxLines: 2,
+                    [
+                      if (product.sku.isNotEmpty) product.sku,
+                      product.category,
+                    ].join(' · '),
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.2,
+                      color: AppColors.muted,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    formatCurrency(product.price),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                      color: Colors.green.shade700,
-                    ),
-                  ),
-                  if (product.isOutOfStock)
-                    Text(
-                      'Agotado',
-                      style: TextStyle(
-                        fontSize: 12,
+                  const SizedBox(height: 3),
+                  // Alto fijo de dos líneas, para que todas las tarjetas
+                  // queden alineadas.
+                  SizedBox(
+                    height: 36,
+                    child: Text(
+                      product.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: Colors.red.shade700,
+                        fontSize: 14,
+                        height: 1.25,
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    formatCurrency(product.price),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 17,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
                 ],
               ),
             ),

@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../models/app_user.dart';
 import '../../services/firestore_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/app_logo.dart';
 import '../../widgets/profile_form.dart';
 import '../account/account_screen.dart';
 
@@ -42,6 +44,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
         title: const Text('Datos de tu óptica'),
         actions: [
@@ -63,7 +66,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 const Text(
                   'Completa los datos de tu óptica para solicitar acceso al '
                   'catálogo.',
-                  style: TextStyle(fontSize: 15, color: Colors.black54),
+                  style: TextStyle(fontSize: 15, color: AppColors.muted),
                 ),
                 const SizedBox(height: 24),
                 ProfileForm(
@@ -91,49 +94,66 @@ class PendingApprovalScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final rejected = user.isRejected;
 
+    final color = rejected ? AppColors.danger : AppColors.warning;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('OptiLink B2B')),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32.0),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  rejected ? Icons.block : Icons.hourglass_top,
-                  size: 72,
-                  color: rejected ? Colors.red.shade400 : Colors.orange,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  rejected ? 'Solicitud rechazada' : 'Solicitud en revisión',
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+      backgroundColor: AppColors.surface,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32.0),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const AppLogo(markSize: 40),
+                  const SizedBox(height: 40),
+                  Container(
+                    width: 88,
+                    height: 88,
+                    decoration: BoxDecoration(
+                      color: rejected
+                          ? AppColors.dangerSoft
+                          : AppColors.warningSoft,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      rejected ? Icons.block : Icons.hourglass_top_rounded,
+                      size: 40,
+                      color: color,
+                    ),
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  rejected
-                      ? 'El distribuidor no aprobó la cuenta de '
-                            '${user.displayName}. Contáctalo para más '
-                            'información.'
-                      : 'El distribuidor todavía no aprueba la cuenta de '
-                            '${user.displayName}. Cuando lo haga, verás el '
-                            'catálogo aquí mismo.',
-                  style: const TextStyle(fontSize: 16, color: Colors.black54),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 28),
-                OutlinedButton.icon(
-                  onPressed: () => signOutAndClearCart(context),
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Cerrar Sesión'),
-                ),
-              ],
+                  const SizedBox(height: 24),
+                  Text(
+                    rejected ? 'Solicitud rechazada' : 'Solicitud en revisión',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    rejected
+                        ? 'El distribuidor no aprobó la cuenta de '
+                              '${user.displayName}. Contáctalo para más '
+                              'información.'
+                        : 'El distribuidor todavía no aprueba la cuenta de '
+                              '${user.displayName}. Cuando lo haga, verás el '
+                              'catálogo aquí mismo.',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 1.5,
+                      color: AppColors.muted,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  OutlinedButton.icon(
+                    onPressed: () => signOutAndClearCart(context),
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Cerrar Sesión'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

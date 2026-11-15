@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/app_user.dart';
 import '../../services/firestore_service.dart';
+import '../../theme/app_theme.dart';
 import '../../widgets/profile_form.dart';
 
 /// Mensaje en español para un error al crear una cuenta en Firebase Auth.
@@ -76,6 +77,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.surface,
       appBar: AppBar(title: const Text('Solicitar acceso')),
       body: Center(
         child: SingleChildScrollView(
@@ -85,10 +87,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text(
+                  'Registra tu óptica',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
                 const Text(
-                  'Registra tu óptica. El distribuidor revisará la solicitud '
-                  'y te habilitará el acceso al catálogo.',
-                  style: TextStyle(fontSize: 15, color: Colors.black54),
+                  'El distribuidor revisará la solicitud y te habilitará el '
+                  'acceso al catálogo.',
+                  style: TextStyle(fontSize: 15, color: AppColors.muted),
                 ),
                 const SizedBox(height: 24),
                 ProfileForm(

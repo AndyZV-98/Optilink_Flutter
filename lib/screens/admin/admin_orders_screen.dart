@@ -3,7 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../models/order.dart';
 import '../../services/firestore_service.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/bottom_action_bar.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/max_width.dart';
 import '../../widgets/order_status_chip.dart';
 import '../order/order_detail_screen.dart';
@@ -38,15 +41,10 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
         }
 
         if (snapshot.hasError) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Text(
-                'No se pudieron cargar los pedidos. Revisa tu conexión e '
-                'inténtalo de nuevo.',
-                textAlign: TextAlign.center,
-              ),
-            ),
+          return const EmptyState(
+            icon: Icons.cloud_off_outlined,
+            title: 'No se pudieron cargar los pedidos.',
+            subtitle: 'Revisa tu conexión e inténtalo de nuevo.',
           );
         }
 
@@ -55,29 +53,29 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
             .where((order) => _status == null || order.status == _status)
             .toList();
 
-        return Column(
-          children: [
-            _buildStatusFilter(orders),
-            Expanded(
-              child: visible.isEmpty
-                  ? Center(
-                      child: Text(
-                        _status == null
+        return MaxWidth(
+          child: Column(
+            children: [
+              _buildStatusFilter(orders),
+              Expanded(
+                child: visible.isEmpty
+                    ? EmptyState(
+                        icon: Icons.receipt_long_outlined,
+                        title: _status == null
                             ? 'Aún no hay pedidos.'
                             : 'No hay pedidos en estado "$_status".',
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    )
-                  : MaxWidth(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(8.0),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                         itemCount: visible.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 12),
                         itemBuilder: (context, index) =>
                             AdminOrderCard(order: visible[index]),
                       ),
-                    ),
-            ),
-          ],
+              ),
+            ],
+          ),
         );
       },
     );
@@ -89,10 +87,10 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
         orders.where((order) => order.status == status).length;
 
     return SizedBox(
-      height: 56,
+      height: 64,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           for (final status in <String?>[null, ...orderStatuses])
             Padding(
@@ -124,8 +122,6 @@ class AdminOrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -136,7 +132,7 @@ class AdminOrderCard extends StatelessWidget {
           );
         },
         child: Padding(
-          padding: const EdgeInsets.all(14.0),
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -148,7 +144,7 @@ class AdminOrderCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                         fontSize: 16,
                       ),
                     ),
@@ -157,13 +153,14 @@ class AdminOrderCard extends StatelessWidget {
                   OrderStatusChip(status: order.status),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 'Pedido #${order.shortId} · ${formatOrderDate(order.orderDate)}',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: const TextStyle(fontSize: 13, color: AppColors.muted),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
                     child: Text(
@@ -171,15 +168,15 @@ class AdminOrderCard extends StatelessWidget {
                       '${order.totalUnits == 1 ? 'unidad' : 'unidades'} · '
                       '${order.items.length} '
                       '${order.items.length == 1 ? 'producto' : 'productos'}',
-                      style: const TextStyle(color: Colors.black54),
+                      style: const TextStyle(color: AppColors.muted),
                     ),
                   ),
                   Text(
                     formatCurrency(order.totalAmount),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
                       fontSize: 18,
-                      color: Colors.green.shade700,
+                      letterSpacing: -0.3,
                     ),
                   ),
                 ],
@@ -277,7 +274,7 @@ class _AdminOrderDetailScreenState extends State<AdminOrderDetailScreen> {
     messenger.showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: failed ? Colors.red : Colors.green,
+        backgroundColor: failed ? AppColors.danger : AppColors.success,
       ),
     );
   }
@@ -312,61 +309,32 @@ class _AdminOrderDetailScreenState extends State<AdminOrderDetailScreen> {
   Widget? _buildActions(Order order, List<String> nextStatuses) {
     if (nextStatuses.isEmpty) return null;
 
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, -2),
-          ),
+    return BottomActionBar(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final status in nextStatuses)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: status == orderStatusCancelled
+                  ? OutlinedButton(
+                      onPressed: _isUpdating
+                          ? null
+                          : () => _changeStatus(order, status),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.danger,
+                      ),
+                      child: Text(_actionLabel(status)),
+                    )
+                  : FilledButton(
+                      onPressed: _isUpdating
+                          ? null
+                          : () => _changeStatus(order, status),
+                      child: Text(_actionLabel(status)),
+                    ),
+            ),
         ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: MaxWidth(
-          fitHeight: true,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final status in nextStatuses)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: status == orderStatusCancelled
-                      ? OutlinedButton(
-                          onPressed: _isUpdating
-                              ? null
-                              : () => _changeStatus(order, status),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red,
-                            minimumSize: const Size(double.infinity, 46),
-                          ),
-                          child: Text(_actionLabel(status)),
-                        )
-                      : ElevatedButton(
-                          onPressed: _isUpdating
-                              ? null
-                              : () => _changeStatus(order, status),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green.shade600,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(double.infinity, 50),
-                          ),
-                          child: Text(
-                            _actionLabel(status),
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                ),
-            ],
-          ),
-        ),
       ),
     );
   }
